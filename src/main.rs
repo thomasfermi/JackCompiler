@@ -19,7 +19,7 @@ use glob::glob;
 
 
 mod jack_tokenizer;
-pub use jack_tokenizer::{JackTokenizer};
+pub use jack_tokenizer::{tokenize};
 
 fn main() {
     let matches = App::new("JackTokenizer")
@@ -59,17 +59,15 @@ fn main() {
 
 
     for input_file in input_files {
-        let mut content = String::new();
+        let mut jack_source_file_content = String::new();
 
         {
             let mut file = File::open(&input_file).expect("File not found.");
-            file.read_to_string(&mut content).expect("Could not read file");
+            file.read_to_string(&mut jack_source_file_content).expect("Could not read file");
         }
 
 
-        //let mut vm_translator = VirtualMachineTranslator::new(&file_content_list);
-        let mut jack_tokenizer = JackTokenizer::new(content);
-        let xml_file = jack_tokenizer.tokenize();
+        let xml_file =tokenize(jack_source_file_content);
 
         // Write to output file
         let mut output_file_name = str::replace(&input_file.into_os_string().into_string().unwrap(),".jack", "_self.xml");

@@ -12,33 +12,16 @@ pub enum Token {
     StringConstant(String),
 }
 
-/// JackTokenizer struct
-pub struct JackTokenizer {
-    /// string containing jack code
-    jack_code: String,
-    /// The current line of the assembly code file is copied into a string
-    current_token: Option<String>,
-}
-
-impl JackTokenizer {
-    /// Creates new JackTokenizer
-    pub fn new(jack_code: String) -> Self {
-        JackTokenizer {
-            jack_code,
-            current_token: None,
-        }
-    }
-
-    /// main function
-    pub fn tokenize(&mut self) -> String {
+/// Consumes a string that is the content of a *.jack program and converts it to tokenized xml file
+pub fn tokenize(mut jack_code : String) -> String {
         // remove comments that are done with //
         let mut re = Regex::new(r"//.*\n").unwrap();
-        self.jack_code = re.replace_all(&self.jack_code, "").into_owned();
+        jack_code = re.replace_all(&jack_code, "").into_owned();
 
         //remove comments that are done with /* ... */
         // (?s) is a flag that changes behavior of "." in regex. "." will match new lines as well
         re = Regex::new(r"/\*(?s).*?\*/").unwrap(); // .*? is .* but non-greedy
-        self.jack_code = re.replace_all(&self.jack_code, "").into_owned();
+        jack_code = re.replace_all(&jack_code, "").into_owned();
 
 
 
@@ -52,7 +35,7 @@ impl JackTokenizer {
 
         let mut inside_string_literal = false;
 
-        let mut chars = self.jack_code.chars();
+        let mut chars = jack_code.chars();
         while let Some(c) = chars.next() {
 
             if inside_string_literal {
@@ -107,7 +90,8 @@ impl JackTokenizer {
 
         return output;
     }
-}
+
+
 
 pub fn tokenize_single_string(s: &String) -> Token {
     let keywords = vec![
