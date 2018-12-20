@@ -9,7 +9,7 @@ pub enum Token {
     Keyword(String),
     Symbol(char),
     Identifier(String),
-    IntConstant(usize),
+    IntConstant(i32),
     StringConstant(String),
 }
 
@@ -41,8 +41,7 @@ impl JackTokenizer {
         re = Regex::new(r"/\*(?s).*\*/").unwrap();
         self.jack_code = re.replace_all(&self.jack_code, "").into_owned();
 
-        let mut chars = self.jack_code.chars();
-        let c = chars.next();
+
 
         let mut tokens = vec![];
         let mut current_string = "".to_string();
@@ -51,16 +50,31 @@ impl JackTokenizer {
             '&', '|', '<', '>', '=', '~',
         ];
 
-        //TODO: check whether we are inside a string literal
 
+        let mut inside_string_literal = false;
+
+        let mut chars = self.jack_code.chars();
         while let Some(c) = chars.next() {
-            if list_containing_whitespace_and_newline_and_all_symbols.contains(&c) {
+
+            if inside_string_literal {
+                if c == '\"' { // string literal ends
+                    tokens.push(Token::StringConstant(current_string.clone()));
+                    current_string = "".to_string();
+                    inside_string_literal = false;
+                } else {
+                    current_string.push(c);
+                }
+            }
+            else if c=='\"' { //string literal begins
+                inside_string_literal = true;
+            }
+            else if list_containing_whitespace_and_newline_and_all_symbols.contains(&c) {
                 // tokenize string that came before this symbol
                 if !current_string.is_empty() {
                     tokens.push(tokenize_single_string(&current_string));
                     current_string = "".to_string();
                 }
-                // tokenize current symbole
+                // tokenize current symbols
                 if c != ' ' && c != '\n' && c != '\r' && c != '\t' {
                     tokens.push(Token::Symbol(c))
                 }
@@ -69,11 +83,30 @@ impl JackTokenizer {
             }
         }
 
+
+        let mut output = "<tokens>\n".to_string();
+
         for t in tokens {
-            println!("{:?}", t);
+            match t {
+                Token::Keyword(keyword) => output += &format!("<keyword> {} </keyword>\n",keyword),
+                Token::Symbol(symbol) => {
+                    let modified_symbol : String = match symbol {
+                        '<' => "&lt;".to_string(),
+                        '>' => "&gt;".to_string(),
+                        '&' => "&amp;".to_string(),
+                        _ => symbol.to_string(),
+                    };
+                    output += &format!("<symbol> {} </symbol>\n",modified_symbol);
+                },
+                Token::Identifier(identifier) => output += &format!("<identifier> {} </identifier>\n",identifier),
+                Token::IntConstant(int_constant) => output += &format!("<integerConstant> {} </integerConstant>\n",int_constant),
+                Token::StringConstant(string_constant) => output += &format!("<stringConstant> {} </stringConstant>\n",string_constant),
+            }
         }
 
-        return self.jack_code.clone();
+        output += "</tokens>";
+
+        return output;
     }
 }
 
@@ -106,8 +139,11 @@ pub fn tokenize_single_string(s: &String) -> Token {
     if keywords.contains(&&**s) {
         Token::Keyword(s.to_string())
     }
-    else {
-        //TODO: could also be integer constant at this point
+    else if let Ok(num) = s.parse::<i32>() {
+        Token::IntConstant(num)
+
+    } else{
+        // TODO: check if s is a sequence of letters digits and underscores not starting with a digit
         Token::Identifier(s.to_string())
     }
 

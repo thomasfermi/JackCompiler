@@ -19,7 +19,7 @@ use glob::glob;
 
 
 mod jack_tokenizer;
-pub use jack_tokenizer::JackTokenizer;
+pub use jack_tokenizer::{JackTokenizer};
 
 fn main() {
     let matches = App::new("JackTokenizer")
@@ -67,7 +67,7 @@ fn main() {
                 panic!("couldn't write to {}: {}", display,
                                                 why.description())
             },
-            Ok(_) => println!("Successfully wrote machine code to {}", display),
+            Ok(_) => println!("Successfully wrote xml to {}", display),
         }
     }
 
