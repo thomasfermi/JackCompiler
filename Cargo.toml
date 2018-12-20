@@ -1,0 +1,9 @@
+[package]
+name = "JackCompiler"
+version = "0.1.0"
+authors = ["thomasfermi <mario.theers@gmail.com>"]
+
+[dependencies]
+clap = "2.32.0"
+glob = "0.2.11"
+regex = "1.1.0"
