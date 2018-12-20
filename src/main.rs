@@ -34,24 +34,47 @@ fn main() {
 
     let input_path_string : String = matches.value_of("Jack_input").unwrap().to_string();
 
-    let mut content = String::new();
 
-    {
-        let mut file = File::open(&input_path_string).expect("File not found.");
-        file.read_to_string(&mut content).expect("Could not read file");
+    let mut input_files = vec![];
+    // check of user gave directory or single file
+    if metadata(&input_path_string).unwrap().is_dir() {
+        for entry in glob(&format!("{}/*.jack",input_path_string)).unwrap() {
+            match entry {
+                Ok(path) => input_files.push(path),
+
+                // if the path matched but was unreadable,
+                // thereby preventing its contents from matching
+                Err(e) => println!("{:?}", e),
+            }
+        }
+        // check that Sys.vm is part of input_files and also that it is the first element in the list
+        input_files.retain(|x| !x.to_str().unwrap().contains("Main.jack")); //TODO: unwrap unsafe
+        let sys_vm_path : PathBuf = [&input_path_string, "Main.jack"].iter().collect();
+        input_files.push(sys_vm_path);
+    }
+    else {
+        input_files.push(PathBuf::from(&input_path_string));
     }
 
 
-    //let mut vm_translator = VirtualMachineTranslator::new(&file_content_list);
-    let mut jack_tokenizer = JackTokenizer::new(content);
-    let xml_file = jack_tokenizer.tokenize();
 
-    // Write to output file
-    let mut output_file_name = str::replace(&input_path_string,".jack", "_self.xml");
+    for input_file in input_files {
+        let mut content = String::new();
+
+        {
+            let mut file = File::open(&input_file).expect("File not found.");
+            file.read_to_string(&mut content).expect("Could not read file");
+        }
 
 
+        //let mut vm_translator = VirtualMachineTranslator::new(&file_content_list);
+        let mut jack_tokenizer = JackTokenizer::new(content);
+        let xml_file = jack_tokenizer.tokenize();
 
-    {
+        // Write to output file
+        let mut output_file_name = str::replace(&input_file.into_os_string().into_string().unwrap(),".jack", "_self.xml");
+
+
         let path = Path::new(&output_file_name);
         let display = path.display();
 
@@ -69,6 +92,7 @@ fn main() {
             },
             Ok(_) => println!("Successfully wrote xml to {}", display),
         }
+
     }
 
 }

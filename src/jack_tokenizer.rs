@@ -2,7 +2,6 @@
 
 extern crate regex;
 use self::regex::Regex;
-use std::str::Lines;
 
 #[derive(Debug)]
 pub enum Token {
@@ -38,7 +37,7 @@ impl JackTokenizer {
 
         //remove comments that are done with /* ... */
         // (?s) is a flag that changes behavior of "." in regex. "." will match new lines as well
-        re = Regex::new(r"/\*(?s).*\*/").unwrap();
+        re = Regex::new(r"/\*(?s).*?\*/").unwrap(); // .*? is .* but non-greedy
         self.jack_code = re.replace_all(&self.jack_code, "").into_owned();
 
 
