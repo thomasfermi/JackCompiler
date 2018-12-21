@@ -12,14 +12,17 @@ pub fn parse_class(tokens : &Vec<Token>){
     if tokens[i] == Token::Keyword("class".to_string()) {
         // class
         output += "<class>\n";
-        i+=1;
         output += "  <keyword> class </keyword>\n";
+        i+=1;
+
 
         // className
-        output += &parse_name(tokens, &mut i, 2);
+        output += &parse_name(&tokens[i], 2);
+        i+=1;
 
         // {
-        output += &parse_specific_symbol(tokens, &mut i, '{', 2);
+        output += &parse_specific_symbol(&tokens[i], '{', 2);
+        i+=1;
 
 
         // classVarDec*
@@ -68,23 +71,20 @@ fn parse_class_var_dec(tokens : &Vec<Token>, i : &mut usize) -> Option<String> {
     output += &parse_type(tokens, i);
 
     // varName
-    output += &parse_name(tokens, i, 4);
+    output += &parse_name(&tokens[*i], 4);
+    *i+=1;
 
     // (, varName)*
     while tokens[*i] == Token::Symbol(',') {
         output += "    <symbol> , </symbol>\n";
         *i += 1;
-        output += &parse_name(tokens, i, 4);
+        output += &parse_name(&tokens[*i], 4);
+        *i+=1;
     }
 
     // ;
-    if tokens[*i] == Token::Symbol(';') {
-        output += "    <symbol> ; </symbol>\n";
-        *i += 1;
-    }
-    else {
-        panic!("Expected a ';'");
-    }
+    output += &parse_specific_symbol(&tokens[*i], ';', 2);
+    *i+=1;
 
     output += "  </classVarDec>\n";
 
@@ -107,7 +107,7 @@ fn parse_subroutine_dec(tokens : &Vec<Token>, i : &mut usize) -> Option<String> 
     }
     *i+=1;
 
-    // ( 'void' | type), TODO: code reuse is bad
+    // ( 'void' | type)
      match &tokens[*i] {
         Token::Keyword(kw) => {
             if kw == "int" || kw == "char" || kw == "boolean" || kw == "void" {
@@ -156,21 +156,20 @@ fn parse_type(tokens : &Vec<Token>, i : &mut usize) -> String {
     }
 }
 
-fn parse_name(tokens : &Vec<Token>, i : &mut usize, indent : usize) -> String {
-    if let Token::Identifier(id) = &tokens[*i] {
-         *i+=1;
+fn parse_name(token : &Token, indent : usize) -> String {
+    if let Token::Identifier(id) = token {
          format!("{:indent$}<identifier> {id:} </identifier>\n", "", indent=indent, id=id)
     } else {
         panic!("Expected a name here!");
     }
 }
 
-fn parse_specific_symbol(tokens : &Vec<Token>, i : &mut usize, c : char, indent : usize) -> String {
-    if tokens[*i] == Token::Symbol('{') {
-        *i+=1;
+fn parse_specific_symbol(token : &Token, c : char, indent : usize) -> String {
+    if *token == Token::Symbol(c) {
         format!("{:indent$}<symbol> {symbol:} </symbol>\n", "", indent=indent, symbol=c)
     }
     else {
-        panic!("Expected {");
+        panic!("Expected {}",c);
     }
 }
+
