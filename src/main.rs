@@ -16,10 +16,8 @@ use std::fs::metadata;
 use glob::glob;
 
 
-
-
 mod jack_tokenizer;
-pub use jack_tokenizer::{tokenize};
+mod jack_parser;
 
 fn main() {
     let matches = App::new("JackTokenizer")
@@ -67,7 +65,11 @@ fn main() {
         }
 
 
-        let xml_file =tokenize(jack_source_file_content);
+        let tokens =  jack_tokenizer::tokenize(jack_source_file_content);
+        jack_parser::parse_class(&tokens);
+        let xml_file = jack_tokenizer::tokens_to_xml(tokens);
+
+
 
         // Write to output file
         let mut output_file_name = str::replace(&input_file.into_os_string().into_string().unwrap(),".jack", "_self.xml");

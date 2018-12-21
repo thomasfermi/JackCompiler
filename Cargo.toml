@@ -1,5 +1,5 @@
 [package]
-name = "JackCompiler"
+name = "jack_compiler"
 version = "0.1.0"
 authors = ["thomasfermi <mario.theers@gmail.com>"]
 
