@@ -3,7 +3,7 @@
 extern crate regex;
 use self::regex::Regex;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     Keyword(String),
     Symbol(char),
