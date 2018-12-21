@@ -68,7 +68,8 @@ fn parse_class_var_dec(tokens : &Vec<Token>, i : &mut usize) -> Option<String> {
     *i+=1;
 
     // type
-    output += &parse_type(tokens, i);
+    output += &parse_type(&tokens[*i],4);
+    *i+=1;
 
     // varName
     output += &parse_name(&tokens[*i], 4);
@@ -130,6 +131,24 @@ fn parse_subroutine_dec(tokens : &Vec<Token>, i : &mut usize) -> Option<String> 
     }
 
     // ( parameterList )
+    output += &parse_specific_symbol(&tokens[*i], '(', 4);
+    *i+=1;
+
+    output += &parse_type(&tokens[*i],4);
+    *i+=1;
+    output += &parse_name(&tokens[*i],4);
+    *i+=1;
+    while tokens[*i] == Token::Symbol(',') {
+        output += "    <symbol> , </symbol>\n";
+        *i += 1;
+        output += &parse_type(&tokens[*i],4);
+        *i+=1;
+        output += &parse_name(&tokens[*i],4);
+        *i+=1;
+    }
+
+    output += &parse_specific_symbol(&tokens[*i], ')', 4);
+    *i+=1;
 
     // subRoutineBody
 
@@ -138,20 +157,16 @@ fn parse_subroutine_dec(tokens : &Vec<Token>, i : &mut usize) -> Option<String> 
     return Some(output);
 }
 
-fn parse_type(tokens : &Vec<Token>, i : &mut usize) -> String {
-    match &tokens[*i] {
+fn parse_type(token : &Token, indent : usize) -> String {
+    match token {
         Token::Keyword(kw) => {
             if kw == "int" || kw == "char" || kw == "boolean" {
-                *i +=1;
-                format!("    <keyword> {} </keyword>\n",kw)
+                format!("{:indent$}<keyword> {kw:} </keyword>\n","", indent=indent, kw=kw)
             } else {
                 panic!("Expected a type! Type has to be int, char, boolean, or class name!")
             }
         },
-        Token::Identifier(id) => {
-            *i+=1;
-            format!("    <identifier> {} </identifier>\n",id)
-        },
+        Token::Identifier(id) =>  format!("    <identifier> {} </identifier>\n",id),
         _ => panic!("Expected a type! Type has to be int, char, boolean, or class name!")
     }
 }
