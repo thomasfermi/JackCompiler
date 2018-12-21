@@ -108,6 +108,7 @@ fn parse_class_var_dec(tokens : &Vec<Token>, i : &mut usize) -> Option<String> {
     // ;
     if tokens[*i] == Token::Symbol(';') {
         output += "    <symbol> ; </symbol>\n";
+        *i += 1;
     }
     else {
         panic!("Expected a ';'");
@@ -133,6 +134,8 @@ fn parse_subroutine_dec(tokens : &Vec<Token>, i : &mut usize) -> Option<String> 
         return None;
     }
     *i+=1;
+
+    //
 
     output += "  </subroutineDec>\n";
 
