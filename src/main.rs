@@ -66,7 +66,7 @@ fn main() {
 
 
         let tokens =  jack_tokenizer::tokenize(jack_source_file_content);
-        let xml_file = jack_parser::parse_class(&tokens);
+        let xml_file = jack_parser::parse_class(&tokens).expect("Parse Error!");
         //let xml_file = jack_tokenizer::tokens_to_xml(tokens);
 
 
