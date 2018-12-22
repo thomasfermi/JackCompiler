@@ -66,13 +66,13 @@ fn main() {
 
 
         let tokens =  jack_tokenizer::tokenize(jack_source_file_content);
-        jack_parser::parse_class(&tokens);
-        let xml_file = jack_tokenizer::tokens_to_xml(tokens);
+        let xml_file = jack_parser::parse_class(&tokens);
+        //let xml_file = jack_tokenizer::tokens_to_xml(tokens);
 
 
 
         // Write to output file
-        let mut output_file_name = str::replace(&input_file.into_os_string().into_string().unwrap(),".jack", "_self.xml");
+        let mut output_file_name = str::replace(&input_file.into_os_string().into_string().unwrap(),".jack", "_parsed.xml");
 
 
         let path = Path::new(&output_file_name);
