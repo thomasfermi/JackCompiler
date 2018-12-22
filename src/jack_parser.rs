@@ -1,6 +1,6 @@
 //! jack_parser
 
-use jack_tokenizer::Token;
+use jack_tokenizer::{Token, Keyword};
 
 pub fn parse_class(tokens : &Vec<Token>) -> Result<String, &'static str> {
     println!("Hello world.");
@@ -9,7 +9,7 @@ pub fn parse_class(tokens : &Vec<Token>) -> Result<String, &'static str> {
     let mut i = 0;
 
 
-    if tokens[i] == Token::Keyword("class".to_string()) {
+    if tokens[i] == Token::Keyword(Keyword::Class) {
         // class
         output += "<class>\n";
         output += "  <keyword> class </keyword>\n";
@@ -53,9 +53,9 @@ fn parse_class_var_dec(tokens : &Vec<Token>, i : &mut usize) -> Result<Option<St
     let mut output = "  <classVarDec>\n".to_string();
 
     // ( static | field )
-    if tokens[*i] == Token::Keyword("static".to_string()) {
+    if tokens[*i] == Token::Keyword(Keyword::Static) {
         output += "    <keyword> static </keyword>\n";
-    } else if tokens[*i] == Token::Keyword("field".to_string()) {
+    } else if tokens[*i] == Token::Keyword(Keyword::Field) {
         output += "    <keyword> field </keyword>\n";
     } else {
         return Ok(None);
@@ -92,11 +92,11 @@ fn parse_subroutine_dec(tokens : &Vec<Token>, i : &mut usize) -> Result<Option<S
     let mut output = "  <subroutineDec>\n".to_string();
 
     // ( constructor | function | method )
-    if tokens[*i] == Token::Keyword("constructor".to_string()) {
+    if tokens[*i] == Token::Keyword(Keyword::Constructor) {
         output += "    <keyword> constructor </keyword>\n";
-    } else if tokens[*i] == Token::Keyword("function".to_string()) {
+    } else if tokens[*i] == Token::Keyword(Keyword::Function) {
         output += "    <keyword> function </keyword>\n";
-    } else if tokens[*i] == Token::Keyword("method".to_string()) {
+    } else if tokens[*i] == Token::Keyword(Keyword::Method) {
         output += "    <keyword> method </keyword>\n";
     } else {
         return Ok(None);
@@ -104,15 +104,15 @@ fn parse_subroutine_dec(tokens : &Vec<Token>, i : &mut usize) -> Result<Option<S
     *i+=1;
 
     // ( 'void' | type)
-     match &tokens[*i] {
+    match &tokens[*i] {
         Token::Keyword(kw) => {
-            if kw == "int" || kw == "char" || kw == "boolean" || kw == "void" {
-                output += &format!("    <keyword> {} </keyword>\n",kw);
-            } else {
-                return Err("Expected a type or 'void'! Type has to be int, char, boolean, or class name!");
+            match kw {
+                Keyword::Int | Keyword::Char | Keyword::Boolean | Keyword::Void =>
+                    output += &format!("{:indent$}<keyword> {kw:} </keyword>\n","", indent=4, kw=kw.to_string()),
+                _ => return Err("Expected a type or 'void'! Type has to be int, char, boolean, or class name!!"),
             }
         },
-        Token::Identifier(id) => output += &format!("    <identifier> {} </identifier>\n",id),
+        Token::Identifier(id) =>  output += &format!("    <identifier> {} </identifier>\n",id),
         _ => return Err("Expected a type! Type has to be int, char, boolean, or class name!")
     }
     *i +=1;
@@ -169,7 +169,7 @@ fn parse_subroutine_body(tokens : &Vec<Token>, i : &mut usize) -> Result<String,
     *i += 1;
 
     // varDec*
-    while tokens[*i] == Token::Keyword("var".to_string()) {
+    while tokens[*i] == Token::Keyword(Keyword::Var) {
         output += "      <varDec>";
         output += "        <keyword> var </keyword>";
         *i+=1;
@@ -214,10 +214,9 @@ fn parse_subroutine_body(tokens : &Vec<Token>, i : &mut usize) -> Result<String,
 fn parse_type(token : &Token, indent : usize) -> Result<String, &'static str> {
     match token {
         Token::Keyword(kw) => {
-            if kw == "int" || kw == "char" || kw == "boolean" {
-                return Ok(format!("{:indent$}<keyword> {kw:} </keyword>\n","", indent=indent, kw=kw));
-            } else {
-                return Err("Expected a type! Type has to be int, char, boolean, or class name!");
+            match kw {
+                Keyword::Int | Keyword::Char | Keyword::Boolean =>  Ok(format!("{:indent$}<keyword> {kw:} </keyword>\n","", indent=indent, kw=kw.to_string())),
+                _ => Err("Expected a type! Type has to be int, char, boolean, or class name!"),
             }
         },
         Token::Identifier(id) =>  Ok(format!("    <identifier> {} </identifier>\n",id)),
@@ -246,21 +245,15 @@ fn parse_statement(tokens : &Vec<Token>, i : &mut usize) -> Result<Option<String
     let mut output = "".to_string();
     match &tokens[*i] {
         Token::Keyword(kw) => {
-            if kw == "let" {
-                output += &parse_let_statement(tokens, i)?;
-            } else if kw == "if" {
-                output += &parse_if_statement(tokens, i)?;
-            } else if kw == "while" {
-                output += &parse_while_statement(tokens, i)?;
-            } else if kw == "do" {
-                output += &parse_do_statement(tokens, i)?;
-            } else if kw == "return" {
-                output += &parse_return_statement(tokens, i)?;
-            } else {
-                return Err("Expected a statement beginning with let, if, while, do, or return!");
+            match kw {
+                Keyword::Let    =>  output += &parse_let_statement(tokens, i)?,
+                Keyword::If     =>  output += &parse_if_statement(tokens, i)?,
+                Keyword::While  =>  output += &parse_while_statement(tokens, i)?,
+                Keyword::Do     =>  output += &parse_do_statement(tokens, i)?,
+                Keyword::Return =>  output += &parse_return_statement(tokens, i)?,
+                _               =>  return Err("Expected a statement beginning with let, if, while, do, or return!")
             }
         },
-        //_ => {println!("token={:?}",&tokens[*i]); return None},
         _ => return Ok(None)
     }
 
@@ -328,7 +321,7 @@ fn parse_if_statement(tokens : &Vec<Token>, i : &mut usize) -> Result<String, &'
     *i+=1;
 
     if let Token::Keyword(kw) = &tokens[*i] {
-        if kw == "else" {
+        if *kw == Keyword::Else {
             // else
             output+= &format!("{:indent$}<keyword> else </keyword>\n", "", indent=10);
             *i+=1;
