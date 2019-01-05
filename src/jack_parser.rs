@@ -209,7 +209,13 @@ fn parse_name(token : &Token, xml_indent : usize) -> Result<String, &'static str
 
 fn parse_specific_symbol(token : &Token, c : char, xml_indent : usize) -> Result<String, &'static str> {
     if *token == Token::Symbol(c) {
-        Ok(format!("{:indent$}<symbol> {symbol:} </symbol>\n", "", indent=xml_indent, symbol=c))
+        let c_xml = match c {
+            '<' => "&lt;".to_string(),
+            '>' => "&gt;".to_string(),
+            '&' => "&amp;".to_string(),
+            _   => c.to_string(),
+        };
+        Ok(format!("{:indent$}<symbol> {symbol:} </symbol>\n", "", indent=xml_indent, symbol=c_xml))
     }
     else {
         panic!("Expected symbol {}, got {:?}", c, *token);
@@ -382,11 +388,10 @@ fn parse_expression_list(token_iterator :  &mut Peekable<Iter<Token>>, xml_inden
     let mut output = parse_specific_symbol(token_iterator.next().unwrap(), '(', xml_indent)?;
     output += &format!("{:indent$}<expressionList>\n", "", indent=xml_indent);
 
-    println!("1");
     if **token_iterator.peek().unwrap() != Token::Symbol(')') {
         output += &parse_expression(token_iterator, xml_indent+2)?;
     }
-    println!("2");
+
     while **token_iterator.peek().unwrap() == Token::Symbol(','){
         output += &parse_specific_symbol(token_iterator.next().unwrap(), ',', xml_indent+2)?;
         output += &parse_expression(token_iterator, xml_indent+2)?;
@@ -398,18 +403,7 @@ fn parse_expression_list(token_iterator :  &mut Peekable<Iter<Token>>, xml_inden
     return Ok(output);
 }
 
-/*
-fn parse_expression(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
-    let mut output =  format!("{:indent$}<expression>\n", "", indent=xml_indent);
-    output += &format!("{:indent$}<term>\n", "", indent=xml_indent+2);
 
-    output += &parse_name(token_iterator.next().unwrap(), xml_indent+4)?;
-
-    output += &format!("{:indent$}</term>\n", "", indent=xml_indent+2);
-    output += &format!("{:indent$}</expression>\n", "", indent=xml_indent);
-    return Ok(output);
-}
-*/
 
 fn parse_expression(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
     let mut output =  format!("{:indent$}<expression>\n", "", indent=xml_indent);
@@ -456,7 +450,11 @@ fn parse_term(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) 
             token_iterator.next();
         },
         // (expression)
-        Token::Symbol('(')              =>   output += &parse_expression_list(token_iterator, xml_indent)?,
+        Token::Symbol('(')              =>   {
+            output += &parse_specific_symbol(token_iterator.next().unwrap(), '(', xml_indent)?;
+            output += &parse_expression(token_iterator, xml_indent)?;
+            output += &parse_specific_symbol(token_iterator.next().unwrap(), ')', xml_indent)?;
+        },
         // unaryOp term
         Token::Symbol('-')              => {
             output += &parse_specific_symbol(token_iterator.next().unwrap(), '-', xml_indent)?;
@@ -475,7 +473,7 @@ fn parse_term(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) 
                 // varName[expression]
                 Token::Symbol('[') => {
                     output += &parse_specific_symbol(token_iterator.next().unwrap(), '[', xml_indent)?;
-                    output += &parse_expression_list(token_iterator, xml_indent)?;
+                    output += &parse_expression(token_iterator, xml_indent)?;
                     output += &parse_specific_symbol(token_iterator.next().unwrap(), ']', xml_indent)?;
                 },
                 // var_name.function_name()
