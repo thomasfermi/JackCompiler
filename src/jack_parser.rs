@@ -11,8 +11,6 @@ pub fn parse_class(tokens : &Vec<Token>) -> Result<String, &'static str> {
     println!("Hello world.");
     let mut output = "".to_string();
 
-    let mut i = 0;
-
     let mut token_iterator = tokens.iter().peekable();
 
     if Token::Keyword(Keyword::Class) == *token_iterator.next().unwrap() {
@@ -150,13 +148,12 @@ fn parse_subroutine_dec(token_iterator : &mut Peekable<Iter<Token>>) -> Result<O
 fn parse_subroutine_body(token_iterator : &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
     // {
     let mut output = parse_specific_symbol(token_iterator.next().unwrap(), '{', 6)?;
-    output += "      <statements>\n";
 
     // varDec*
     while **token_iterator.peek().unwrap() == Token::Keyword(Keyword::Var) {
         token_iterator.next();
-        output += "      <varDec>";
-        output += "        <keyword> var </keyword>";
+        output += "      <varDec>\n";
+        output += "        <keyword> var </keyword>\n";
         // type
         output += &parse_type(token_iterator.next().unwrap(),8)?;
 
@@ -165,23 +162,23 @@ fn parse_subroutine_body(token_iterator : &mut Peekable<Iter<Token>>) -> Result<
         // (, varName)*
         while **token_iterator.peek().unwrap() == Token::Symbol(',') {
             token_iterator.next();
-            output += "    <symbol> , </symbol>\n";
+            output += "        <symbol> , </symbol>\n";
             output += &parse_name(token_iterator.next().unwrap(), 8)?;
         }
 
         // ;
         output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', 8)?;
 
-        output += "      </varDec>";
+        output += "      </varDec>\n";
     }
 
     // statements
+    output += "      <statements>\n";
      while let Some(s_statement) = parse_statement(token_iterator)?{
         output += &s_statement;
      }
-
-
     output += "      </statements>\n";
+
     // }
     output += &parse_specific_symbol(token_iterator.next().unwrap(), '}', 6)?;
 
@@ -196,7 +193,7 @@ fn parse_type(token : &Token, indent : usize) -> Result<String, &'static str> {
                 _ => Err("Expected a type! Type has to be int, char, boolean, or class name!"),
             }
         },
-        Token::Identifier(id) =>  Ok(format!("    <identifier> {} </identifier>\n",id)),
+        Token::Identifier(id) =>  Ok(format!("{:indent$}<identifier> {id:} </identifier>\n","",indent=indent,id=id)),
         _ => Err("Expected a type! Type has to be int, char, boolean, or class name!")
     }
 }
@@ -262,6 +259,7 @@ fn parse_let_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<S
     return Ok(output);
 }
 
+
 fn parse_if_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
     let mut output = "        <ifStatement>\n".to_string();
     output        += "          <keyword> if </keyword>\n";
@@ -277,9 +275,12 @@ fn parse_if_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<St
     // { statements }
     output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',10)?;
 
+    output += "          <statements>\n";
     while let Some(s_statement) = parse_statement(token_iterator)?{
         output += &s_statement;
      }
+    output += "          </statements>\n";
+
 
     output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',10)?;
 
@@ -290,15 +291,18 @@ fn parse_if_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<St
         output+= &format!("{:indent$}<keyword> else </keyword>\n", "", indent=10);
         // { statements }
         output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',10)?;
+        output += "      <statements>\n";
         while let Some(s_statement) = parse_statement(token_iterator)?{
             output += &s_statement;
         }
+        output += "      </statements>\n";
         output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',10)?;
     }
 
     output    += "        </ifStatement>\n";
     return Ok(output);
 }
+
 
 fn parse_while_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
     let mut output = "        <whileStatement>\n".to_string();
@@ -325,6 +329,7 @@ fn parse_while_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result
     return Ok(output);
 }
 
+
 fn parse_do_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
     let mut output = "        <doStatement>\n".to_string();
     output        += "          <keyword> do </keyword>\n";
@@ -338,6 +343,7 @@ fn parse_do_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<St
     output    += "        </doStatement>\n";
     return Ok(output);
 }
+
 
 fn parse_return_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
     let mut output = "        <returnStatement>\n".to_string();
