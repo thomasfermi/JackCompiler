@@ -8,7 +8,6 @@ use std::iter::Peekable;
 
 
 pub fn parse_class(tokens : &Vec<Token>) -> Result<String, &'static str> {
-    println!("Hello world.");
     let mut output = "".to_string();
 
     let mut token_iterator = tokens.iter().peekable();
@@ -202,7 +201,6 @@ fn parse_name(token : &Token, xml_indent : usize) -> Result<String, &'static str
     if let Token::Identifier(id) = token {
         Ok(format!("{:indent$}<identifier> {id:} </identifier>\n", "", indent=xml_indent, id=id))
     } else {
-        panic!("Expected name, got {:?}", *token);
         Err("Expected a name here!")
     }
 }
@@ -218,7 +216,6 @@ fn parse_specific_symbol(token : &Token, c : char, xml_indent : usize) -> Result
         Ok(format!("{:indent$}<symbol> {symbol:} </symbol>\n", "", indent=xml_indent, symbol=c_xml))
     }
     else {
-        panic!("Expected symbol {}, got {:?}", c, *token);
         Err("Expected a different symbol")
     }
 }
@@ -409,7 +406,6 @@ fn parse_expression(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : u
     let mut output =  format!("{:indent$}<expression>\n", "", indent=xml_indent);
     output += &parse_term(token_iterator, xml_indent+2)?;
     while let Some(s_op) = peek_operation(token_iterator, xml_indent+2)?{
-        //println!("{:?}", token_iterator.next().unwrap());
         token_iterator.next();
         output += &s_op;
         output += &parse_term(token_iterator, xml_indent+2)?;
@@ -490,8 +486,8 @@ fn parse_term(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) 
                 _ => {}
             }
         },
-        Token::Symbol(s) => panic!("found {:}, which is no term", s),
-        _ => panic!("found {:?}, which is no term", token_iterator.peek().unwrap()),
+        Token::Symbol(s) => return Err("This symbol is not a term"),
+        _ => return Err("This token is not a term")
     }
 
 
