@@ -174,7 +174,7 @@ fn parse_subroutine_body(token_iterator : &mut Peekable<Iter<Token>>) -> Result<
 
     // statements
     output += "      <statements>\n";
-     while let Some(s_statement) = parse_statement(token_iterator)?{
+     while let Some(s_statement) = parse_statement(token_iterator, 8)?{
         output += &s_statement;
      }
     output += "      </statements>\n";
@@ -215,16 +215,16 @@ fn parse_specific_symbol(token : &Token, c : char, indent : usize) -> Result<Str
     }
 }
 
-fn parse_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<Option<String>, &'static str> {
+fn parse_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<Option<String>, &'static str> {
     let mut output = "".to_string();
     match token_iterator.peek().unwrap() {
         Token::Keyword(kw) => {
             match kw {
-                Keyword::Let    =>  output += &parse_let_statement(token_iterator)?,
-                Keyword::If     =>  output += &parse_if_statement(token_iterator)?,
-                Keyword::While  =>  output += &parse_while_statement(token_iterator)?,
-                Keyword::Do     =>  output += &parse_do_statement(token_iterator)?,
-                Keyword::Return =>  output += &parse_return_statement(token_iterator)?,
+                Keyword::Let    =>  output += &parse_let_statement(token_iterator, xml_indent)?,
+                Keyword::If     =>  output += &parse_if_statement(token_iterator, xml_indent)?,
+                Keyword::While  =>  output += &parse_while_statement(token_iterator, xml_indent)?,
+                Keyword::Do     =>  output += &parse_do_statement(token_iterator, xml_indent)?,
+                Keyword::Return =>  output += &parse_return_statement(token_iterator, xml_indent)?,
                 _               =>  return Err("Expected a statement beginning with let, if, while, do, or return!")
             }
         },
@@ -234,128 +234,130 @@ fn parse_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<Optio
     return Ok(Some(output));
 }
 
-fn parse_let_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
-    let mut output = "        <letStatement>\n".to_string();
-    output        += "          <keyword> let </keyword>\n";
+fn parse_let_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
+
+    let mut output = format!("{:indent$}<letStatement>\n", "", indent=xml_indent);
+    output += &format!("{:indent$}<keyword> let </keyword>\n", "", indent=xml_indent+2);
     token_iterator.next();
 
     // varName
-    output += &parse_name(token_iterator.next().unwrap(), 10)?;
+    output += &parse_name(token_iterator.next().unwrap(), xml_indent+2)?;
     // [ expression ]
     if **token_iterator.peek().unwrap() == Token::Symbol('['){
-        output += &parse_specific_symbol(token_iterator.next().unwrap(),'[',10)?;
-        output += &parse_expression(token_iterator, 10)?;
-        output += &parse_specific_symbol(token_iterator.next().unwrap(),']',10)?;
+        output += &parse_specific_symbol(token_iterator.next().unwrap(),'[', xml_indent+2)?;
+        output += &parse_expression(token_iterator, xml_indent+2)?;
+        output += &parse_specific_symbol(token_iterator.next().unwrap(),']', xml_indent+2)?;
     }
 
     // =
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), '=', 10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(), '=', xml_indent+2)?;
     // expression
-    output += &parse_expression(token_iterator, 10)?;
+    output += &parse_expression(token_iterator, xml_indent+2)?;
     // ;
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', 10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', xml_indent+2)?;
 
-    output    += "        </letStatement>\n";
+    output    += &format!("{:indent$}</letStatement>\n", "", indent=xml_indent);
     return Ok(output);
 }
 
 
-fn parse_if_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
-    let mut output = "        <ifStatement>\n".to_string();
-    output        += "          <keyword> if </keyword>\n";
+fn parse_if_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
+    let mut output = format!("{:indent$}<ifStatement>\n", "", indent=xml_indent);
+    output        += &format!("{:indent$}<keyword> if </keyword>\n", "", indent=xml_indent+2);
     token_iterator.next();
 
      // ( expression )
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),'(',10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),'(',xml_indent+2)?;
 
-    output += &parse_expression(token_iterator, 10)?;
+    output += &parse_expression(token_iterator, xml_indent + 2)?;
 
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),')',10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),')',xml_indent + 2)?;
 
     // { statements }
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',xml_indent + 2)?;
 
-    output += "          <statements>\n";
-    while let Some(s_statement) = parse_statement(token_iterator)?{
+    output += &format!("{:indent$}<statements>\n", "", indent=xml_indent+2);
+    while let Some(s_statement) = parse_statement(token_iterator, xml_indent + 4)?{
         output += &s_statement;
      }
-    output += "          </statements>\n";
+    output += &format!("{:indent$}</statements>\n", "", indent=xml_indent+2);
 
 
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',xml_indent + 2)?;
 
 
     if Token::Keyword(Keyword::Else) == **token_iterator.peek().unwrap() {
         // else
         token_iterator.next();
-        output+= &format!("{:indent$}<keyword> else </keyword>\n", "", indent=10);
+        output+= &format!("{:indent$}<keyword> else </keyword>\n", "", indent=xml_indent + 2);
         // { statements }
-        output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',10)?;
-        output += "      <statements>\n";
-        while let Some(s_statement) = parse_statement(token_iterator)?{
+        output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',xml_indent + 2)?;
+        output += &format!("{:indent$}<statements>\n", "", indent=xml_indent+2);
+        while let Some(s_statement) = parse_statement(token_iterator, xml_indent + 4)?{
             output += &s_statement;
         }
-        output += "      </statements>\n";
-        output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',10)?;
+        output += &format!("{:indent$}</statements>\n", "", indent=xml_indent+2);
+        output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',xml_indent + 2)?;
     }
 
-    output    += "        </ifStatement>\n";
+    output    += &format!("{:indent$}</ifStatement>\n", "", indent=xml_indent);
     return Ok(output);
 }
 
 
-fn parse_while_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
-    let mut output = "        <whileStatement>\n".to_string();
-    output        += "          <keyword> while </keyword>\n";
+fn parse_while_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
+    let mut output = format!("{:indent$}<whileStatement>\n", "", indent=xml_indent);
+    output        += &format!("{:indent$}<keyword> while </keyword>\n", "", indent=xml_indent+2);
     token_iterator.next();
 
     // ( expression )
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),'(',10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),'(',xml_indent + 2)?;
 
-    output += &parse_expression(token_iterator, 10)?;
+    output += &parse_expression(token_iterator, xml_indent + 2)?;
 
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),')',10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),')',xml_indent + 2)?;
 
     // { statements }
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',10)?;
-
-    while let Some(s_statement) = parse_statement(token_iterator)?{
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),'{',xml_indent + 2)?;
+    output += &format!("{:indent$}<statements>\n", "", indent=xml_indent+2);
+    while let Some(s_statement) = parse_statement(token_iterator, xml_indent+4)?{
         output += &s_statement;
      }
+    output += &format!("{:indent$}</statements>\n", "", indent=xml_indent+2);
 
-    output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(),'}',xml_indent + 2)?;
 
-    output    += "        </whileStatement>\n";
+    output    += &format!("{:indent$}<whileStatement>\n", "", indent=xml_indent + 2);
     return Ok(output);
 }
 
 
-fn parse_do_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
-    let mut output = "        <doStatement>\n".to_string();
-    output        += "          <keyword> do </keyword>\n";
+fn parse_do_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
+    let mut output = format!("{:indent$}<doStatement>\n", "", indent=xml_indent);
+    output        += &format!("{:indent$}<keyword> do </keyword>\n", "", indent=xml_indent+2);
     token_iterator.next();
 
     while **token_iterator.peek().unwrap() != Token::Symbol(';'){ //TODO: replace with real implementation
         token_iterator.next();
     }
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', 10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', xml_indent+2)?;
 
-    output    += "        </doStatement>\n";
+    output    += &format!("{:indent$}<doStatement>\n", "", indent=xml_indent);
     return Ok(output);
 }
 
 
-fn parse_return_statement(token_iterator :  &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
-    let mut output = "        <returnStatement>\n".to_string();
-    output        += "          <keyword> return </keyword>\n";
+fn parse_return_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
+    let mut output = format!("{:indent$}<returnStatement>\n", "", indent=xml_indent);
+    output        += &format!("{:indent$}<keyword> return </keyword>\n", "", indent=xml_indent+2);
     token_iterator.next();
 
     if **token_iterator.peek().unwrap() != Token::Symbol(';') {
-        output += &parse_expression(token_iterator, 10)?;
+        output += &parse_expression(token_iterator, xml_indent+2)?;
     }
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', 10)?;
+    output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', xml_indent+2)?;
 
-    output    += "        </returnStatement>\n";
+    output    += &format!("{:indent$}<returnStatement>\n", "", indent=xml_indent);
     return Ok(output);
 }
 
