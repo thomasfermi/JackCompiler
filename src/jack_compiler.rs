@@ -40,10 +40,27 @@ struct JackClassSymbolTable {
 }
 
 #[derive(Debug, Clone)]
+struct JackMethodSymbolTable {
+    entries : Vec<JackMethodSymbolTableEntry>,
+    num_args : usize,
+    num_vars : usize,
+}
+
+#[derive(Debug, Clone)]
 struct JackMethodSymbolTableEntry{
     var_name : String,
     var_type : JackVariableType,
     var_kind : JackMethodVariableKind,
+}
+
+impl JackMethodSymbolTableEntry {
+    fn new(var_name:String, var_type:JackVariableType, var_kind:JackMethodVariableKind) -> Self {
+        JackMethodSymbolTableEntry {
+            var_name,
+            var_type,
+            var_kind,
+        }
+    }
 }
 
 
@@ -53,7 +70,7 @@ pub struct JackCompiler<'a> {
     vm_output: String,
     class_name : String,
     class_symbol_table : JackClassSymbolTable,
-    method_symbol_table : Vec<JackMethodSymbolTableEntry>,
+    method_symbol_table : JackMethodSymbolTable,
 }
 
 impl<'a> JackCompiler<'a> {
@@ -64,7 +81,7 @@ impl<'a> JackCompiler<'a> {
             vm_output: "".to_string(),
             class_name: "".to_string(),
             class_symbol_table : JackClassSymbolTable{entries:vec![], num_fields:0, num_statics:0},
-            method_symbol_table : vec![],
+            method_symbol_table : JackMethodSymbolTable{entries:vec![], num_args:0, num_vars:0},
         }
     }
     /// Main function
@@ -88,6 +105,7 @@ impl<'a> JackCompiler<'a> {
 
             // subRoutineDec*
             while self.parse_subroutine_dec()? {
+                println!("table={:?}", self.method_symbol_table);
                 // do nothing
             }
 
@@ -168,6 +186,9 @@ impl<'a> JackCompiler<'a> {
     }
 
     fn parse_subroutine_dec(&mut self) -> Result<bool, &'static str> {
+        // forget about last symbol table from last function and initialize new one
+        self.method_symbol_table = JackMethodSymbolTable{entries:vec![], num_args:0, num_vars:0};
+
         // ( constructor | function | method )
         match self.token_iterator.peek().unwrap() {
             Token::Keyword(Keyword::Constructor) => {
@@ -212,16 +233,23 @@ impl<'a> JackCompiler<'a> {
         self.parse_specific_symbol('(', 4)?;
         self.vm_output += "    <parameterList>\n";
 
-        if **self.token_iterator.peek().unwrap() != Token::Symbol(')') {
-            // if function has more than zero arguments
-            self.parse_type(6)?;
-            self.parse_name(6)?;
+        if **self.token_iterator.peek().unwrap() != Token::Symbol(')') { // if function has more than zero arguments
+            let var_type = self.parse_type(6)?;
+            let var_name = format!("{}",self.parse_name(6)?);
+            self.method_symbol_table.entries.push(
+                    JackMethodSymbolTableEntry::new(var_name, var_type, JackMethodVariableKind::Jargument(0))
+            );
+            self.method_symbol_table.num_args=1;
 
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "      <symbol> , </symbol>\n";
-                self.parse_type(6)?;
-                self.parse_name(6)?;
+                let var_type = self.parse_type(6)?;
+                let var_name = format!("{}",self.parse_name(6)?);
+                self.method_symbol_table.entries.push(
+                    JackMethodSymbolTableEntry::new(var_name, var_type, JackMethodVariableKind::Jargument(self.method_symbol_table.num_args))  
+                );
+                self.method_symbol_table.num_args+=1;
             }
         }
 
@@ -248,15 +276,27 @@ impl<'a> JackCompiler<'a> {
             self.vm_output += "      <varDec>\n";
             self.vm_output += "        <keyword> var </keyword>\n";
             // type
-            self.parse_type(8)?;
+            let var_type = self.parse_type(8)?;
 
             // varName
-            self.parse_name(8)?;
+            let var_name = format!("{}",self.parse_name(8)?);
+
+            
+            self.method_symbol_table.entries.push(
+                JackMethodSymbolTableEntry::new(var_name,var_type.clone(),JackMethodVariableKind::Jvar(self.method_symbol_table.num_vars))
+            );
+            self.method_symbol_table.num_vars+=1;
+
             // (, varName)*
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "        <symbol> , </symbol>\n";
-                self.parse_name(8)?;
+                let var_name = format!("{}",self.parse_name(8)?);
+
+                self.method_symbol_table.entries.push(
+                    JackMethodSymbolTableEntry::new(var_name,var_type.clone(),JackMethodVariableKind::Jvar(self.method_symbol_table.num_vars))
+                );
+                self.method_symbol_table.num_vars+=1;
             }
 
             // ;
