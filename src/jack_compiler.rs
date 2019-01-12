@@ -43,8 +43,8 @@ impl<'a> JackCompiler<'a> {
 
 
             // subRoutineDec*
-            while let Some(s_subroutine_dec) = parse_subroutine_dec(&mut self.token_iterator)?{
-                self.vm_output += &s_subroutine_dec;
+            while self.parse_subroutine_dec()?{
+                // do nothing
             }
 
 
@@ -97,109 +97,127 @@ impl<'a> JackCompiler<'a> {
         return Ok(true);
     }
 
-}
-
-
-
-
-
-fn parse_subroutine_dec(token_iterator : &mut Peekable<Iter<Token>>) -> Result<Option<String>, &'static str> {
-    let mut output = "  <subroutineDec>\n".to_string();
-    // ( constructor | function | method )
-    match token_iterator.peek().unwrap() {
-        Token::Keyword(Keyword::Constructor) =>  output += "    <keyword> constructor </keyword>\n",
-        Token::Keyword(Keyword::Function)    =>  output += "    <keyword> function </keyword>\n",
-        Token::Keyword(Keyword::Method)      =>  output += "    <keyword> method </keyword>\n",
-        _ =>  return Ok(None)
-    }
-    token_iterator.next();
-
-    // ( 'void' | type)
-    match token_iterator.next().unwrap() {
-        Token::Keyword(Keyword::Int)     =>  output += "    <keyword> int </keyword>\n",
-        Token::Keyword(Keyword::Char)    =>  output += "    <keyword> char </keyword>\n",
-        Token::Keyword(Keyword::Boolean) =>  output += "    <keyword> boolean </keyword>\n",
-        Token::Keyword(Keyword::Void)    =>  output += "    <keyword> void </keyword>\n",
-        Token::Identifier(id) =>  output += &format!("    <identifier> {} </identifier>\n",id),
-        _ => return Err("Expected void or a type! Type has to be int, char, boolean, or class name!")
-    }
-
-    // subRoutineName
-    if let Token::Identifier(id) = token_iterator.next().unwrap() {
-        output += &format!("    <identifier> {} </identifier>\n",id);
-    } else {
-        return Err("Expected a subRoutine name here!");
-    }
-
-    // ( parameterList )
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), '(', 4)?;
-    output += "    <parameterList>\n";
-
-    if **token_iterator.peek().unwrap() != Token::Symbol(')') { // if function has more than zero arguments
-        output += &parse_type(token_iterator.next().unwrap(),6)?;
-        output += &parse_name(token_iterator.next().unwrap(),6)?;
-
-        while **token_iterator.peek().unwrap() == Token::Symbol(',') {
-            token_iterator.next();
-            output += "      <symbol> , </symbol>\n";
-            output += &parse_type(token_iterator.next().unwrap(),6)?;
-            output += &parse_name(token_iterator.next().unwrap(),6)?;
+    fn parse_subroutine_dec(&mut self) -> Result<bool, &'static str>  {
+        // ( constructor | function | method )
+        match self.token_iterator.peek().unwrap() {
+            Token::Keyword(Keyword::Constructor) =>  self.vm_output += "  <subroutineDec>\n    <keyword> constructor </keyword>\n",
+            Token::Keyword(Keyword::Function)    =>  self.vm_output += "  <subroutineDec>\n    <keyword> function </keyword>\n",
+            Token::Keyword(Keyword::Method)      =>  self.vm_output += "  <subroutineDec>\n    <keyword> method </keyword>\n",
+            _ =>  return Ok(false)
         }
-    }
+        self.token_iterator.next();
 
-
-    output += "    </parameterList>\n";
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), ')', 4)?;
-
-    // subRoutineBody
-    output += "    <subroutineBody>\n";
-    output += &parse_subroutine_body(token_iterator)?;
-    output += "    </subroutineBody>\n";
-
-    output += "  </subroutineDec>\n";
-
-    return Ok(Some(output));
-}
-
-fn parse_subroutine_body(token_iterator : &mut Peekable<Iter<Token>>) -> Result<String, &'static str> {
-    // {
-    let mut output = parse_specific_symbol(token_iterator.next().unwrap(), '{', 6)?;
-
-    // varDec*
-    while **token_iterator.peek().unwrap() == Token::Keyword(Keyword::Var) {
-        token_iterator.next();
-        output += "      <varDec>\n";
-        output += "        <keyword> var </keyword>\n";
-        // type
-        output += &parse_type(token_iterator.next().unwrap(),8)?;
-
-        // varName
-        output += &parse_name(token_iterator.next().unwrap(), 8)?;
-        // (, varName)*
-        while **token_iterator.peek().unwrap() == Token::Symbol(',') {
-            token_iterator.next();
-            output += "        <symbol> , </symbol>\n";
-            output += &parse_name(token_iterator.next().unwrap(), 8)?;
+        // ( 'void' | type)
+        match self.token_iterator.next().unwrap() {
+            Token::Keyword(Keyword::Int)     =>  self.vm_output += "    <keyword> int </keyword>\n",
+            Token::Keyword(Keyword::Char)    =>  self.vm_output += "    <keyword> char </keyword>\n",
+            Token::Keyword(Keyword::Boolean) =>  self.vm_output += "    <keyword> boolean </keyword>\n",
+            Token::Keyword(Keyword::Void)    =>  self.vm_output += "    <keyword> void </keyword>\n",
+            Token::Identifier(id) =>  self.vm_output += &format!("    <identifier> {} </identifier>\n",id),
+            _ => return Err("Expected void or a type! Type has to be int, char, boolean, or class name!")
         }
 
-        // ;
-        output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', 8)?;
+        // subRoutineName
+        if let Token::Identifier(id) = self.token_iterator.next().unwrap() {
+            self.vm_output += &format!("    <identifier> {} </identifier>\n",id);
+        } else {
+            return Err("Expected a subRoutine name here!");
+        }
 
-        output += "      </varDec>\n";
+        // ( parameterList )
+        self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), '(', 4)?;
+        self.vm_output += "    <parameterList>\n";
+
+        if **self.token_iterator.peek().unwrap() != Token::Symbol(')') { // if function has more than zero arguments
+            self.vm_output += &parse_type(self.token_iterator.next().unwrap(),6)?;
+            self.vm_output += &parse_name(self.token_iterator.next().unwrap(),6)?;
+
+            while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
+                self.token_iterator.next();
+                self.vm_output += "      <symbol> , </symbol>\n";
+                self.vm_output += &parse_type(self.token_iterator.next().unwrap(),6)?;
+                self.vm_output += &parse_name(self.token_iterator.next().unwrap(),6)?;
+            }
+        }
+
+
+        self.vm_output += "    </parameterList>\n";
+        self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), ')', 4)?;
+
+        // subRoutineBody
+        self.vm_output += "    <subroutineBody>\n";
+        self.parse_subroutine_body()?;
+        self.vm_output += "    </subroutineBody>\n";
+
+        self.vm_output += "  </subroutineDec>\n";
+
+        return Ok(true);
     }
 
-    // statements
-    output += "      <statements>\n";
-     while let Some(s_statement) = parse_statement(token_iterator, 8)?{
-        output += &s_statement;
-     }
-    output += "      </statements>\n";
+    fn parse_subroutine_body(&mut self) -> Result<(), &'static str> {
+        // {
+        self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), '{', 6)?;
 
-    // }
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), '}', 6)?;
+        // varDec*
+        while **self.token_iterator.peek().unwrap() == Token::Keyword(Keyword::Var) {
+            self.token_iterator.next();
+            self.vm_output += "      <varDec>\n";
+            self.vm_output += "        <keyword> var </keyword>\n";
+            // type
+            self.vm_output += &parse_type(self.token_iterator.next().unwrap(),8)?;
 
-    return Ok(output);
+            // varName
+            self.vm_output += &parse_name(self.token_iterator.next().unwrap(), 8)?;
+            // (, varName)*
+            while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
+                self.token_iterator.next();
+                self.vm_output += "        <symbol> , </symbol>\n";
+                self.vm_output += &parse_name(self.token_iterator.next().unwrap(), 8)?;
+            }
+
+            // ;
+            self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), ';', 8)?;
+
+            self.vm_output += "      </varDec>\n";
+        }
+
+        // statements
+        self.vm_output += "      <statements>\n";
+        while self.parse_statement(8)?{
+            // do nothing
+        }
+        self.vm_output += "      </statements>\n";
+
+        // }
+        self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), '}', 6)?;
+
+        return Ok(());
+    }
+
+
+
+    fn parse_statement(&mut self, xml_indent : usize) -> Result<bool, &'static str> {
+        
+        match self.token_iterator.peek().unwrap() {
+            Token::Keyword(kw) => {
+                match kw {
+                    Keyword::Let    =>  self.vm_output += &parse_let_statement(&mut self.token_iterator, xml_indent)?,
+                    Keyword::If     =>  self.vm_output += &parse_if_statement(&mut self.token_iterator, xml_indent)?,
+                    Keyword::While  =>  self.vm_output += &parse_while_statement(&mut self.token_iterator, xml_indent)?,
+                    Keyword::Do     =>  self.vm_output += &parse_do_statement(&mut self.token_iterator, xml_indent)?,
+                    Keyword::Return =>  self.vm_output += &parse_return_statement(&mut self.token_iterator, xml_indent)?,
+                    _               =>  return Err("Expected a statement beginning with let, if, while, do, or return!")
+                }
+            },
+            _ => return Ok(false)
+        }
+        return Ok(true);
+    }
+
 }
+
+
+
 
 fn parse_type(token : &Token, xml_indent : usize) -> Result<String, &'static str> {
     match token {
@@ -237,24 +255,8 @@ fn parse_specific_symbol(token : &Token, c : char, xml_indent : usize) -> Result
     }
 }
 
-fn parse_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<Option<String>, &'static str> {
-    let mut output = "".to_string();
-    match token_iterator.peek().unwrap() {
-        Token::Keyword(kw) => {
-            match kw {
-                Keyword::Let    =>  output += &parse_let_statement(token_iterator, xml_indent)?,
-                Keyword::If     =>  output += &parse_if_statement(token_iterator, xml_indent)?,
-                Keyword::While  =>  output += &parse_while_statement(token_iterator, xml_indent)?,
-                Keyword::Do     =>  output += &parse_do_statement(token_iterator, xml_indent)?,
-                Keyword::Return =>  output += &parse_return_statement(token_iterator, xml_indent)?,
-                _               =>  return Err("Expected a statement beginning with let, if, while, do, or return!")
-            }
-        },
-        _ => return Ok(None)
-    }
 
-    return Ok(Some(output));
-}
+
 
 fn parse_let_statement(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
 
