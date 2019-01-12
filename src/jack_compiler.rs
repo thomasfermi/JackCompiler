@@ -5,10 +5,55 @@ use jack_tokenizer::{Keyword, Token};
 use std::iter::Peekable;
 use std::slice::Iter;
 
+#[derive(Debug, Clone)]
+enum JackVariableType {
+    Jint,
+    Jchar,
+    Jboolean,
+    Jclass(String),
+}
+
+#[derive(Debug, Clone)]
+enum JackClassVariableKind {
+    Jstatic(usize),
+    Jfield(usize),
+}
+
+#[derive(Debug, Clone)]
+enum JackMethodVariableKind{
+    Jargument(usize),
+    Jvar(usize),
+}
+
+#[derive(Debug, Clone)]
+struct JackClassSymbolTableEntry{
+    var_name : String,
+    var_type : JackVariableType,
+    var_kind : JackClassVariableKind,
+}
+
+#[derive(Debug, Clone)]
+struct JackClassSymbolTable {
+    entries : Vec<JackClassSymbolTableEntry>,
+    num_fields : usize,
+    num_statics : usize,
+}
+
+#[derive(Debug, Clone)]
+struct JackMethodSymbolTableEntry{
+    var_name : String,
+    var_type : JackVariableType,
+    var_kind : JackMethodVariableKind,
+}
+
+
 /// JackCompiler struct
 pub struct JackCompiler<'a> {
     token_iterator: Peekable<Iter<'a, Token>>,
     vm_output: String,
+    class_name : String,
+    class_symbol_table : JackClassSymbolTable,
+    method_symbol_table : Vec<JackMethodSymbolTableEntry>,
 }
 
 impl<'a> JackCompiler<'a> {
@@ -17,6 +62,9 @@ impl<'a> JackCompiler<'a> {
         JackCompiler {
             token_iterator: tokens.iter().peekable(),
             vm_output: "".to_string(),
+            class_name: "".to_string(),
+            class_symbol_table : JackClassSymbolTable{entries:vec![], num_fields:0, num_statics:0},
+            method_symbol_table : vec![],
         }
     }
     /// Main function
@@ -27,7 +75,7 @@ impl<'a> JackCompiler<'a> {
             self.vm_output += "  <keyword> class </keyword>\n";
 
             // className
-            self.parse_name(2)?;
+            self.class_name = format!("{}",self.parse_name(2)?);
 
             // {
             self.parse_specific_symbol('{', 2)?;
@@ -36,6 +84,7 @@ impl<'a> JackCompiler<'a> {
             while self.parse_class_var_dec()? {
                 // do nothing
             }
+            println!("table={:?}", self.class_symbol_table);
 
             // subRoutineDec*
             while self.parse_subroutine_dec()? {
@@ -55,28 +104,59 @@ impl<'a> JackCompiler<'a> {
 
     fn parse_class_var_dec(&mut self) -> Result<bool, &'static str> {
         // ( static | field )
-        match self.token_iterator.peek().unwrap() {
+        let mut var_kind = match self.token_iterator.peek().unwrap() {
             Token::Keyword(Keyword::Static) => {
-                self.vm_output += "  <classVarDec>\n    <keyword> static </keyword>\n"
+                self.vm_output += "  <classVarDec>\n    <keyword> static </keyword>\n"; 
+                self.class_symbol_table.num_statics+=1;               
+                JackClassVariableKind::Jstatic(self.class_symbol_table.num_statics-1)
             }
             Token::Keyword(Keyword::Field) => {
-                self.vm_output += "  <classVarDec>\n    <keyword> field </keyword>\n"
+                self.vm_output += "  <classVarDec>\n    <keyword> field </keyword>\n";
+                self.class_symbol_table.num_fields+=1;
+                JackClassVariableKind::Jfield(self.class_symbol_table.num_fields-1)              
             }
             _ => return Ok(false),
-        }
+        };
         self.token_iterator.next();
 
         // type
-        self.parse_type(4)?;
+        let var_type = self.parse_type(4)?;
 
         // varName
-        self.parse_name(4)?;
+        let mut var_name = format!("{}",self.parse_name(4)?);
+
+        self.class_symbol_table.entries.push(
+            JackClassSymbolTableEntry{
+               var_name,
+               var_type : var_type.clone(),
+               var_kind : var_kind.clone(),                
+            }
+        );
 
         // (, varName)*
         while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
             self.token_iterator.next(); // peek successful, hence next()
             self.vm_output += "    <symbol> , </symbol>\n";
-            self.parse_name(4)?;
+            
+            var_kind = match var_kind {
+                JackClassVariableKind::Jstatic(_num) => {
+                    self.class_symbol_table.num_statics+=1;
+                    JackClassVariableKind::Jstatic(self.class_symbol_table.num_statics-1)
+                }
+                JackClassVariableKind::Jfield(_num) => {
+                    self.class_symbol_table.num_fields+=1;
+                    JackClassVariableKind::Jfield(self.class_symbol_table.num_fields-1)
+                }
+            };
+            var_name = format!("{}",self.parse_name(4)?);
+
+            self.class_symbol_table.entries.push(
+                JackClassSymbolTableEntry{
+                    var_name,
+                    var_type : var_type.clone(),
+                    var_kind : var_kind.clone(),                
+                }
+            );
         }
 
         // ;
@@ -473,7 +553,7 @@ impl<'a> JackCompiler<'a> {
                     _ => {}
                 }
             }
-            Token::Symbol(s) => return Err("This symbol is not a term"),
+            Token::Symbol(_s) => return Err("This symbol is not a term"),
             _ => return Err("This token is not a term"),
         }
 
@@ -530,34 +610,46 @@ impl<'a> JackCompiler<'a> {
         Ok(true)
     }
 
-    fn parse_type(&mut self, xml_indent: usize) -> Result<(), &'static str> {
+    fn parse_type(&mut self, xml_indent: usize) -> Result<JackVariableType, &'static str> {
         match self.token_iterator.next().unwrap() {
-            Token::Keyword(kw) => match kw {
-                Keyword::Int | Keyword::Char | Keyword::Boolean => {
-                    self.vm_output += &format!(
-                        "{:indent$}<keyword> {kw:} </keyword>\n",
-                        "",
-                        indent = xml_indent,
-                        kw = kw.to_string()
-                    );
-                    Ok(())
-                }
-                _ => Err("Expected a type! Type has to be int, char, boolean, or class name!"),
-            },
-            Token::Identifier(id) => {
+            Token::Identifier(identifier) => {
                 self.vm_output += &format!(
                     "{:indent$}<identifier> {id:} </identifier>\n",
                     "",
                     indent = xml_indent,
-                    id = id
+                    id = identifier
                 );
-                Ok(())
-            }
+                Ok(JackVariableType::Jclass(identifier.to_string()))
+            },
+            Token::Keyword(Keyword::Int)=> {
+                self.vm_output += &format!(
+                    "{:indent$}<keyword> int </keyword>\n",
+                    "",
+                    indent = xml_indent
+                );
+                Ok(JackVariableType::Jint)
+            },
+            Token::Keyword(Keyword::Char)=> {
+                self.vm_output += &format!(
+                    "{:indent$}<keyword> char </keyword>\n",
+                    "",
+                    indent = xml_indent
+                );
+                Ok(JackVariableType::Jchar)
+            },
+            Token::Keyword(Keyword::Boolean)=> {
+                self.vm_output += &format!(
+                    "{:indent$}<keyword> boolean </keyword>\n",
+                    "",
+                    indent = xml_indent
+                );
+                Ok(JackVariableType::Jboolean)
+            },
             _ => Err("Expected a type! Type has to be int, char, boolean, or class name!"),
         }
     }
 
-    fn parse_name(&mut self, xml_indent: usize) -> Result<(), &'static str> {
+    fn parse_name(&mut self, xml_indent: usize) -> Result<&str, &'static str> {
         if let Token::Identifier(id) = self.token_iterator.next().unwrap() {
             self.vm_output += &format!(
                 "{:indent$}<identifier> {id:} </identifier>\n",
@@ -565,7 +657,7 @@ impl<'a> JackCompiler<'a> {
                 indent = xml_indent,
                 id = id
             );
-            Ok(())
+            Ok(id)
         } else {
             Err("Expected a name here!")
         }
