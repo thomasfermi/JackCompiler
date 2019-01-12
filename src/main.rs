@@ -17,7 +17,8 @@ use glob::glob;
 
 
 mod jack_tokenizer;
-mod jack_parser;
+mod jack_compiler;
+pub use jack_compiler::JackCompiler;
 
 fn main() {
     let matches = App::new("JackTokenizer")
@@ -66,7 +67,8 @@ fn main() {
 
 
         let tokens =  jack_tokenizer::tokenize(jack_source_file_content);
-        let xml_file = jack_parser::parse_class(&tokens).expect("Parse Error!");
+        let mut jack_compiler = JackCompiler::new(&tokens);
+        let xml_file = jack_compiler.parse_class().expect("Parse Error!");
         //let xml_file = jack_tokenizer::tokens_to_xml(tokens);
 
 

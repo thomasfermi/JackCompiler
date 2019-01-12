@@ -1,4 +1,4 @@
-//! jack_parser
+//! jack_compiler
 
 use jack_tokenizer::{Token, Keyword};
 
@@ -6,84 +6,101 @@ use jack_tokenizer::{Token, Keyword};
 use std::slice::Iter;
 use std::iter::Peekable;
 
-
-pub fn parse_class(tokens : &Vec<Token>) -> Result<String, &'static str> {
-    let mut output = "".to_string();
-
-    let mut token_iterator = tokens.iter().peekable();
-
-    if Token::Keyword(Keyword::Class) == *token_iterator.next().unwrap() {
-        // class
-        output += "<class>\n";
-        output += "  <keyword> class </keyword>\n";
-
-        // className
-        output += &parse_name(token_iterator.next().unwrap(), 2)?;
-
-         // {
-        output += &parse_specific_symbol(token_iterator.next().unwrap(), '{', 2)?;
-
-        // classVarDec*
-        while let Some(s_class_var_dec) = parse_class_var_dec(&mut token_iterator)?{
-            output += &s_class_var_dec;
-        }
-
-
-        // subRoutineDec*
-        while let Some(s_subroutine_dec) = parse_subroutine_dec(&mut token_iterator)?{
-            output += &s_subroutine_dec;
-        }
-
-
-        // }
-        output += &parse_specific_symbol(token_iterator.next().unwrap(), '}', 2)?;
-
-
-        output += "</class>";
-
-
-    } else {
-        return Err("This is no class!");
-    }
-
-    return Ok(output);
+/// JackCompiler struct
+pub struct JackCompiler<'a> {
+    token_iterator : Peekable<Iter<'a, Token>>,
+    vm_output : String, 
 }
 
-fn parse_class_var_dec(token_iterator : &mut Peekable<Iter<Token>>) -> Result<Option<String>, &'static str> {
 
-    let mut output = "  <classVarDec>\n".to_string();
-
-    // ( static | field )
-    match token_iterator.peek().unwrap() {
-        Token::Keyword(Keyword::Static) => output += "    <keyword> static </keyword>\n",
-        Token::Keyword(Keyword::Field)  => output += "    <keyword> field </keyword>\n",
-        _ => return Ok(None)
+impl<'a> JackCompiler<'a> {
+    /// Constructor
+    pub fn new(tokens : &'a[Token]) -> Self{
+        JackCompiler{
+            token_iterator : tokens.iter().peekable(),
+            vm_output : "".to_string(),
+        }
     }
-    token_iterator.next();
+    /// Main function
+    pub fn parse_class(&mut self) -> Result<String, &'static str> {
+        
+        
+        if Token::Keyword(Keyword::Class) == *self.token_iterator.next().unwrap() {
+            // class
+            self.vm_output += "<class>\n";
+            self.vm_output += "  <keyword> class </keyword>\n";
 
-    // type
-    output += &parse_type(&token_iterator.next().unwrap(),4)?;
+            // className
+            self.vm_output += &parse_name(self.token_iterator.next().unwrap(), 2)?;
 
-    // varName
-    output += &parse_name(&token_iterator.next().unwrap(),4)?;
+            // {
+            self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), '{', 2)?;
+
+            // classVarDec*
+            while self.parse_class_var_dec()?{
+                // do nothing
+            }
 
 
-    // (, varName)*
-    while **token_iterator.peek().unwrap() == Token::Symbol(',') {
-        token_iterator.next(); // peek successful, hence next()
-        output += "    <symbol> , </symbol>\n";
-        output += &parse_name(token_iterator.next().unwrap(), 4)?;
+            // subRoutineDec*
+            while let Some(s_subroutine_dec) = parse_subroutine_dec(&mut self.token_iterator)?{
+                self.vm_output += &s_subroutine_dec;
+            }
+
+
+            // }
+            self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), '}', 2)?;
+
+
+            self.vm_output += "</class>";
+
+
+        } else {
+            return Err("This is no class!");
+        }
+
+        return Ok(self.vm_output.clone());
     }
 
-    // ;
-    output += &parse_specific_symbol(token_iterator.next().unwrap(), ';', 4)?;
+
+    fn parse_class_var_dec(&mut self) -> Result<bool, &'static str> {
+
+        // ( static | field )
+        match self.token_iterator.peek().unwrap() {
+            Token::Keyword(Keyword::Static) => self.vm_output += "  <classVarDec>\n    <keyword> static </keyword>\n",
+            Token::Keyword(Keyword::Field)  => self.vm_output += "  <classVarDec>\n    <keyword> field </keyword>\n",
+            _ => return Ok(false)
+        }
+        self.token_iterator.next();
+
+        // type
+        self.vm_output += &parse_type(&self.token_iterator.next().unwrap(),4)?;
+
+        // varName
+        self.vm_output += &parse_name(&self.token_iterator.next().unwrap(),4)?;
 
 
-    output += "  </classVarDec>\n";
+        // (, varName)*
+        while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
+            self.token_iterator.next(); // peek successful, hence next()
+            self.vm_output += "    <symbol> , </symbol>\n";
+            self.vm_output += &parse_name(self.token_iterator.next().unwrap(), 4)?;
+        }
+
+        // ;
+        self.vm_output += &parse_specific_symbol(self.token_iterator.next().unwrap(), ';', 4)?;
 
 
-    return Ok(Some(output));
+        self.vm_output += "  </classVarDec>\n";
+
+
+        return Ok(true);
+    }
+
 }
+
+
+
 
 
 fn parse_subroutine_dec(token_iterator : &mut Peekable<Iter<Token>>) -> Result<Option<String>, &'static str> {
@@ -399,7 +416,6 @@ fn parse_expression_list(token_iterator :  &mut Peekable<Iter<Token>>, xml_inden
     output += &parse_specific_symbol(token_iterator.next().unwrap(), ')', xml_indent)?;
     return Ok(output);
 }
-
 
 
 fn parse_expression(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<String, &'static str> {
