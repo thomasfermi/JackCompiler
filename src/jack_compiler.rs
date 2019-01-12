@@ -31,10 +31,10 @@ impl<'a> JackCompiler<'a> {
             self.vm_output += "  <keyword> class </keyword>\n";
 
             // className
-            self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), 2)?;
+            self.parse_name(2)?;
 
             // {
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '{', 2)?;
+            self.parse_specific_symbol( '{', 2)?;
 
             // classVarDec*
             while self.parse_class_var_dec()?{
@@ -49,7 +49,7 @@ impl<'a> JackCompiler<'a> {
 
 
             // }
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '}', 2)?;
+            self.parse_specific_symbol( '}', 2)?;
 
 
             self.vm_output += "</class>";
@@ -74,21 +74,21 @@ impl<'a> JackCompiler<'a> {
         self.token_iterator.next();
 
         // type
-        self.vm_output += &Self::parse_type(&self.token_iterator.next().unwrap(),4)?;
+        self.parse_type(4)?;
 
         // varName
-        self.vm_output += &Self::parse_name(&self.token_iterator.next().unwrap(),4)?;
+        self.parse_name(4)?;
 
 
         // (, varName)*
         while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
             self.token_iterator.next(); // peek successful, hence next()
             self.vm_output += "    <symbol> , </symbol>\n";
-            self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), 4)?;
+            self.parse_name( 4)?;
         }
 
         // ;
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ';', 4)?;
+        self.parse_specific_symbol( ';', 4)?;
 
 
         self.vm_output += "  </classVarDec>\n";
@@ -125,24 +125,24 @@ impl<'a> JackCompiler<'a> {
         }
 
         // ( parameterList )
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '(', 4)?;
+        self.parse_specific_symbol( '(', 4)?;
         self.vm_output += "    <parameterList>\n";
 
         if **self.token_iterator.peek().unwrap() != Token::Symbol(')') { // if function has more than zero arguments
-            self.vm_output += &Self::parse_type(self.token_iterator.next().unwrap(),6)?;
-            self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(),6)?;
+            self.parse_type(6)?;
+            self.parse_name(6)?;
 
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "      <symbol> , </symbol>\n";
-                self.vm_output += &Self::parse_type(self.token_iterator.next().unwrap(),6)?;
-                self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(),6)?;
+                self.parse_type(6)?;
+                self.parse_name(6)?;
             }
         }
 
 
         self.vm_output += "    </parameterList>\n";
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ')', 4)?;
+        self.parse_specific_symbol( ')', 4)?;
 
         // subRoutineBody
         self.vm_output += "    <subroutineBody>\n";
@@ -156,7 +156,7 @@ impl<'a> JackCompiler<'a> {
 
     fn parse_subroutine_body(&mut self) -> Result<(), &'static str> {
         // {
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '{', 6)?;
+        self.parse_specific_symbol( '{', 6)?;
 
         // varDec*
         while **self.token_iterator.peek().unwrap() == Token::Keyword(Keyword::Var) {
@@ -164,19 +164,19 @@ impl<'a> JackCompiler<'a> {
             self.vm_output += "      <varDec>\n";
             self.vm_output += "        <keyword> var </keyword>\n";
             // type
-            self.vm_output += &Self::parse_type(self.token_iterator.next().unwrap(),8)?;
+            self.parse_type(8)?;
 
             // varName
-            self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), 8)?;
+            self.parse_name( 8)?;
             // (, varName)*
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "        <symbol> , </symbol>\n";
-                self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), 8)?;
+                self.parse_name( 8)?;
             }
 
             // ;
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ';', 8)?;
+            self.parse_specific_symbol( ';', 8)?;
 
             self.vm_output += "      </varDec>\n";
         }
@@ -189,7 +189,7 @@ impl<'a> JackCompiler<'a> {
         self.vm_output += "      </statements>\n";
 
         // }
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '}', 6)?;
+        self.parse_specific_symbol( '}', 6)?;
 
         return Ok(());
     }
@@ -223,20 +223,20 @@ impl<'a> JackCompiler<'a> {
         self.token_iterator.next();
 
         // varName
-        self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), xml_indent+2)?;
+        self.parse_name( xml_indent+2)?;
         // [ expression ]
         if **self.token_iterator.peek().unwrap() == Token::Symbol('['){
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'[', xml_indent+2)?;
+            self.parse_specific_symbol('[', xml_indent+2)?;
             self.parse_expression(xml_indent+2)?;
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),']', xml_indent+2)?;
+            self.parse_specific_symbol(']', xml_indent+2)?;
         }
 
         // =
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '=', xml_indent+2)?;
+        self.parse_specific_symbol( '=', xml_indent+2)?;
         // expression
         self.parse_expression(xml_indent+2)?;
         // ;
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ';', xml_indent+2)?;
+        self.parse_specific_symbol( ';', xml_indent+2)?;
 
         self.vm_output    += &format!("{:indent$}</letStatement>\n", "", indent=xml_indent);
         return Ok(());
@@ -250,14 +250,14 @@ impl<'a> JackCompiler<'a> {
         self.token_iterator.next();
 
         // ( expression )
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'(',xml_indent+2)?;
+        self.parse_specific_symbol('(',xml_indent+2)?;
 
         self.parse_expression(xml_indent + 2)?;
 
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),')',xml_indent + 2)?;
+        self.parse_specific_symbol(')',xml_indent + 2)?;
 
         // { statements }
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'{',xml_indent + 2)?;
+        self.parse_specific_symbol('{',xml_indent + 2)?;
 
         self.vm_output += &format!("{:indent$}<statements>\n", "", indent=xml_indent+2);
         while self.parse_statement(xml_indent + 4)?{
@@ -266,7 +266,7 @@ impl<'a> JackCompiler<'a> {
         self.vm_output += &format!("{:indent$}</statements>\n", "", indent=xml_indent+2);
 
 
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'}',xml_indent + 2)?;
+        self.parse_specific_symbol('}',xml_indent + 2)?;
 
 
         if Token::Keyword(Keyword::Else) == **self.token_iterator.peek().unwrap() {
@@ -274,13 +274,13 @@ impl<'a> JackCompiler<'a> {
             self.token_iterator.next();
             self.vm_output+= &format!("{:indent$}<keyword> else </keyword>\n", "", indent=xml_indent + 2);
             // { statements }
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'{',xml_indent + 2)?;
+            self.parse_specific_symbol('{',xml_indent + 2)?;
             self.vm_output += &format!("{:indent$}<statements>\n", "", indent=xml_indent+2);
             while self.parse_statement(xml_indent + 4)?{
                 // do nothing
             }
             self.vm_output += &format!("{:indent$}</statements>\n", "", indent=xml_indent+2);
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'}',xml_indent + 2)?;
+            self.parse_specific_symbol('}',xml_indent + 2)?;
         }
 
         self.vm_output    += &format!("{:indent$}</ifStatement>\n", "", indent=xml_indent);
@@ -295,21 +295,21 @@ impl<'a> JackCompiler<'a> {
         self.token_iterator.next();
 
         // ( expression )
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'(',xml_indent + 2)?;
+        self.parse_specific_symbol('(',xml_indent + 2)?;
 
         self.parse_expression(xml_indent + 2)?;
 
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),')',xml_indent + 2)?;
+        self.parse_specific_symbol(')',xml_indent + 2)?;
 
         // { statements }
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'{',xml_indent + 2)?;
+        self.parse_specific_symbol('{',xml_indent + 2)?;
         self.vm_output += &format!("{:indent$}<statements>\n", "", indent=xml_indent+2);
         while self.parse_statement(xml_indent+4)?{
             // do nothing
         }
         self.vm_output += &format!("{:indent$}</statements>\n", "", indent=xml_indent+2);
 
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(),'}',xml_indent + 2)?;
+        self.parse_specific_symbol('}',xml_indent + 2)?;
 
         self.vm_output    += &format!("{:indent$}</whileStatement>\n", "", indent=xml_indent);
         return Ok(());
@@ -327,7 +327,7 @@ impl<'a> JackCompiler<'a> {
         while **self.token_iterator.peek().unwrap() != Token::Symbol(';'){ //TODO: replace with real implementation
             self.token_iterator.next();
         }
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ';', xml_indent+2)?;
+        self.parse_specific_symbol( ';', xml_indent+2)?;
 
         self.vm_output    += &format!("{:indent$}</doStatement>\n", "", indent=xml_indent);
         return Ok(());
@@ -342,7 +342,7 @@ impl<'a> JackCompiler<'a> {
         if **self.token_iterator.peek().unwrap() != Token::Symbol(';') {
             self.parse_expression(xml_indent+2)?;
         }
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ';', xml_indent+2)?;
+        self.parse_specific_symbol( ';', xml_indent+2)?;
 
         self.vm_output    += &format!("{:indent$}</returnStatement>\n", "", indent=xml_indent);
         return Ok(());
@@ -352,9 +352,7 @@ impl<'a> JackCompiler<'a> {
     fn parse_expression(&mut self, xml_indent : usize) -> Result<(), &'static str> {
         self.vm_output += &format!("{:indent$}<expression>\n", "", indent=xml_indent);
         self.parse_term(xml_indent+2)?;
-        while let Some(s_op) = Self::peek_operation(&mut self.token_iterator, xml_indent+2)?{
-            self.token_iterator.next();
-            self.vm_output += &s_op;
+        while self.find_operation(xml_indent+2)?{
             self.parse_term(xml_indent+2)?;
         }
 
@@ -394,17 +392,17 @@ impl<'a> JackCompiler<'a> {
             },
             // (expression)
             Token::Symbol('(')              =>   {
-                self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '(', xml_indent+2)?;
+                self.parse_specific_symbol( '(', xml_indent+2)?;
                 self.parse_expression(xml_indent+2)?;
-                self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ')', xml_indent+2)?;
+                self.parse_specific_symbol( ')', xml_indent+2)?;
             },
             // unaryOp term
             Token::Symbol('-')              => {
-                self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '-', xml_indent+2)?;
+                self.parse_specific_symbol( '-', xml_indent+2)?;
                 self.parse_term( xml_indent+2)?;
             },
             Token::Symbol('~')              => {
-                self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '~', xml_indent+2)?;
+                self.parse_specific_symbol( '~', xml_indent+2)?;
                 self.parse_term( xml_indent+2)?;
             },
             // varname | varname[expression] | subroutineCall
@@ -415,14 +413,14 @@ impl<'a> JackCompiler<'a> {
                 match **self.token_iterator.peek().unwrap() {
                     // varName[expression]
                     Token::Symbol('[') => {
-                        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '[', xml_indent+2)?;
+                        self.parse_specific_symbol( '[', xml_indent+2)?;
                         self.parse_expression(xml_indent+2)?;
-                        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ']', xml_indent+2)?;
+                        self.parse_specific_symbol( ']', xml_indent+2)?;
                     },
                     // var_name.function_name()
                     Token::Symbol('.') => {
-                        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '.', xml_indent+2)?;
-                        self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), xml_indent+2)?;
+                        self.parse_specific_symbol( '.', xml_indent+2)?;
+                        self.parse_name( xml_indent+2)?;
                         self.parse_expression_list(xml_indent+2)?;
                     }, 
                     // function_name()
@@ -446,7 +444,7 @@ impl<'a> JackCompiler<'a> {
 
     fn parse_expression_list(&mut self, xml_indent : usize) -> Result<(), &'static str> {
         // (
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '(', xml_indent)?;
+        self.parse_specific_symbol( '(', xml_indent)?;
         self.vm_output += &format!("{:indent$}<expressionList>\n", "", indent=xml_indent);
 
         if **self.token_iterator.peek().unwrap() != Token::Symbol(')') {
@@ -454,22 +452,22 @@ impl<'a> JackCompiler<'a> {
         }
 
         while **self.token_iterator.peek().unwrap() == Token::Symbol(','){
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ',', xml_indent+2)?;
+            self.parse_specific_symbol( ',', xml_indent+2)?;
             self.parse_expression(xml_indent+2)?;
         }
 
         self.vm_output += &format!("{:indent$}</expressionList>\n", "", indent=xml_indent);
         // )
-        self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), ')', xml_indent)?;
+        self.parse_specific_symbol( ')', xml_indent)?;
         return Ok(());
     }
 
     fn parse_subroutine_call(&mut self, xml_indent : usize) -> Result<(), &'static str>{
-        self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), xml_indent)?;
+        self.parse_name( xml_indent)?;
         // if a dot follows, we have the case className|varName . subRoutineName, otherwise it is just subroutineName
         if **self.token_iterator.peek().unwrap() == Token::Symbol('.') {
-            self.vm_output += &Self::parse_specific_symbol(self.token_iterator.next().unwrap(), '.', xml_indent)?;
-            self.vm_output += &Self::parse_name(self.token_iterator.next().unwrap(), xml_indent)?;
+            self.parse_specific_symbol( '.', xml_indent)?;
+            self.parse_name( xml_indent)?;
         }
         self.parse_expression_list(xml_indent)?;
 
@@ -477,56 +475,62 @@ impl<'a> JackCompiler<'a> {
     }
 
 
-    fn peek_operation(token_iterator :  &mut Peekable<Iter<Token>>, xml_indent : usize) -> Result<Option<String>, &'static str> {
-        match token_iterator.peek().unwrap() {
-            Token::Symbol('+') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'+', xml_indent)?)),
-            Token::Symbol('-') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'-', xml_indent)?)),
-            Token::Symbol('*') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'*', xml_indent)?)),
-            Token::Symbol('/') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'/', xml_indent)?)),
-            Token::Symbol('&') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'&', xml_indent)?)),
-            Token::Symbol('|') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'|', xml_indent)?)),
-            Token::Symbol('<') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'<', xml_indent)?)),
-            Token::Symbol('>') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'>', xml_indent)?)),
-            Token::Symbol('=') => Ok(Some(Self::parse_specific_symbol(token_iterator.peek().unwrap(),'=', xml_indent)?)),
-            _ => Ok(None)
+    fn find_operation(&mut self, xml_indent : usize) -> Result<bool, &'static str> {
+        match self.token_iterator.peek().unwrap() {
+            Token::Symbol('+') => self.parse_specific_symbol('+', xml_indent)?,
+            Token::Symbol('-') => self.parse_specific_symbol('-', xml_indent)?,
+            Token::Symbol('*') => self.parse_specific_symbol('*', xml_indent)?,
+            Token::Symbol('/') => self.parse_specific_symbol('/', xml_indent)?,
+            Token::Symbol('&') => self.parse_specific_symbol('&', xml_indent)?,
+            Token::Symbol('|') => self.parse_specific_symbol('|', xml_indent)?,
+            Token::Symbol('<') => self.parse_specific_symbol('<', xml_indent)?,
+            Token::Symbol('>') => self.parse_specific_symbol('>', xml_indent)?,
+            Token::Symbol('=') => self.parse_specific_symbol('=', xml_indent)?,
+            _ => return Ok(false)
         }
+        Ok(true)
     }
 
 
 
-
-
-
-    fn parse_type(token : &Token, xml_indent : usize) -> Result<String, &'static str> {
-        match token {
+    fn parse_type(&mut self, xml_indent : usize) -> Result<(), &'static str> {
+        match self.token_iterator.next().unwrap() {
             Token::Keyword(kw) => {
                 match kw {
-                    Keyword::Int | Keyword::Char | Keyword::Boolean =>  Ok(format!("{:indent$}<keyword> {kw:} </keyword>\n","", indent=xml_indent, kw=kw.to_string())),
+                    Keyword::Int | Keyword::Char | Keyword::Boolean =>  {
+                        self.vm_output += &format!("{:indent$}<keyword> {kw:} </keyword>\n","", indent=xml_indent, kw=kw.to_string());
+                        Ok(())
+                    },
                     _ => Err("Expected a type! Type has to be int, char, boolean, or class name!"),
                 }
             },
-            Token::Identifier(id) =>  Ok(format!("{:indent$}<identifier> {id:} </identifier>\n","",indent=xml_indent,id=id)),
+            Token::Identifier(id) =>  {
+                self.vm_output += &format!("{:indent$}<identifier> {id:} </identifier>\n","",indent=xml_indent,id=id);
+                Ok(())
+            },
             _ => Err("Expected a type! Type has to be int, char, boolean, or class name!")
         }
     }
 
-    fn parse_name(token : &Token, xml_indent : usize) -> Result<String, &'static str> {
-        if let Token::Identifier(id) = token {
-            Ok(format!("{:indent$}<identifier> {id:} </identifier>\n", "", indent=xml_indent, id=id))
+    fn parse_name(&mut self, xml_indent : usize) -> Result<(), &'static str> {
+        if let Token::Identifier(id) = self.token_iterator.next().unwrap() {
+            self.vm_output += &format!("{:indent$}<identifier> {id:} </identifier>\n", "", indent=xml_indent, id=id);
+            Ok(())
         } else {
             Err("Expected a name here!")
         }
     }
 
-    fn parse_specific_symbol(token : &Token, c : char, xml_indent : usize) -> Result<String, &'static str> {
-        if *token == Token::Symbol(c) {
+    fn parse_specific_symbol(&mut self, c : char, xml_indent : usize) -> Result<(), &'static str> {
+        if *self.token_iterator.next().unwrap() == Token::Symbol(c) {
             let c_xml = match c {
                 '<' => "&lt;".to_string(),
                 '>' => "&gt;".to_string(),
                 '&' => "&amp;".to_string(),
                 _   => c.to_string(),
             };
-            Ok(format!("{:indent$}<symbol> {symbol:} </symbol>\n", "", indent=xml_indent, symbol=c_xml))
+            self.vm_output += &format!("{:indent$}<symbol> {symbol:} </symbol>\n", "", indent=xml_indent, symbol=c_xml);
+            Ok(())
         }
         else {
             Err("Expected a different symbol")
