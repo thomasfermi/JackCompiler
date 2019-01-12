@@ -27,13 +27,13 @@ enum JackMethodVariableKind{
 
 #[derive(Debug, Clone)]
 struct JackClassSymbolTableEntry{
-    var_name : String,
+    var_name : String, 
     var_type : JackVariableType,
     var_kind : JackClassVariableKind,
 }
 
 #[derive(Debug, Clone)]
-struct JackClassSymbolTable {
+struct JackClassSymbolTable { //TODO: Should be hash table, so that variables can be fetched quickly. 
     entries : Vec<JackClassSymbolTableEntry>,
     num_fields : usize,
     num_statics : usize,
