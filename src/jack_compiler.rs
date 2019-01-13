@@ -21,7 +21,7 @@ struct SymbolTableEntry {
 }
 
 impl SymbolTableEntry {
-    fn new(var_type: JackVariableType, num:usize) -> Self {
+    fn new(var_type: JackVariableType, num: usize) -> Self {
         SymbolTableEntry { var_type, num }
     }
 }
@@ -34,17 +34,22 @@ enum VariableKind {
     Jarg,
 }
 
+#[derive(Debug, Clone)]
+enum FunctionKind {
+    Jmethod,
+    Jconstructor,
+    Jfunction,
+}
 
 /// JackCompiler struct
 pub struct JackCompiler<'a> {
     token_iterator: Peekable<Iter<'a, Token>>,
     vm_output: String,
     class_name: String,
-    field_symbol_table: HashMap<String,SymbolTableEntry>,
-    static_symbol_table: HashMap<String,SymbolTableEntry>,
-    var_symbol_table: HashMap<String,SymbolTableEntry>,
-    arg_symbol_table: HashMap<String,SymbolTableEntry>,
-
+    field_symbol_table: HashMap<String, SymbolTableEntry>,
+    static_symbol_table: HashMap<String, SymbolTableEntry>,
+    var_symbol_table: HashMap<String, SymbolTableEntry>,
+    arg_symbol_table: HashMap<String, SymbolTableEntry>,
 }
 
 impl<'a> JackCompiler<'a> {
@@ -54,32 +59,66 @@ impl<'a> JackCompiler<'a> {
             token_iterator: tokens.iter().peekable(),
             vm_output: "".to_string(),
             class_name: "".to_string(),
-            field_symbol_table : HashMap::new(),
-            static_symbol_table : HashMap::new(),
-            var_symbol_table : HashMap::new(),
-            arg_symbol_table : HashMap::new(),
+            field_symbol_table: HashMap::new(),
+            static_symbol_table: HashMap::new(),
+            var_symbol_table: HashMap::new(),
+            arg_symbol_table: HashMap::new(),
         }
     }
 
-    fn add_to_symbol_table(&mut self, var_type : JackVariableType, var_kind : VariableKind, var_name : String) {
+    fn add_to_symbol_table(
+        &mut self,
+        var_type: JackVariableType,
+        var_kind: VariableKind,
+        var_name: String,
+    ) -> Result<(), &'static str> {
         match var_kind {
             VariableKind::Jstatic => {
-                let len = self.static_symbol_table.len();
-                self.static_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
-            },
+                if !self.static_symbol_table.contains_key(&var_name)
+                    && !self.field_symbol_table.contains_key(&var_name)
+                {
+                    let len = self.static_symbol_table.len();
+                    self.static_symbol_table
+                        .insert(var_name, SymbolTableEntry::new(var_type, len));
+                } else {
+                    return Err("This variable name is already in use!");
+                }
+            }
             VariableKind::Jfield => {
-                let len = self.field_symbol_table.len();
-                self.field_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
-            },
+                if !self.static_symbol_table.contains_key(&var_name)
+                    && !self.field_symbol_table.contains_key(&var_name)
+                {
+                    let len = self.field_symbol_table.len();
+                    self.field_symbol_table
+                        .insert(var_name, SymbolTableEntry::new(var_type, len));
+                } else {
+                    return Err("This variable name is already in use!");
+                }
+            }
             VariableKind::Jvar => {
-                let len = self.var_symbol_table.len();
-                self.var_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
-            },
+                if !self.var_symbol_table.contains_key(&var_name)
+                    && !self.arg_symbol_table.contains_key(&var_name)
+                {
+                    let len = self.var_symbol_table.len();
+                    self.var_symbol_table
+                        .insert(var_name, SymbolTableEntry::new(var_type, len));
+                } else {
+                    return Err("This variable name is already in use!");
+                }
+            }
             VariableKind::Jarg => {
-                let len = self.arg_symbol_table.len();
-                self.arg_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
+                if !self.var_symbol_table.contains_key(&var_name)
+                    && !self.arg_symbol_table.contains_key(&var_name)
+                {
+                    let len = self.arg_symbol_table.len();
+                    self.arg_symbol_table
+                        .insert(var_name, SymbolTableEntry::new(var_type, len));
+                } else {
+                    return Err("This variable name is already in use!");
+                }
             }
         }
+        Ok(())
     }
 
     /// Main function
@@ -141,7 +180,7 @@ impl<'a> JackCompiler<'a> {
         // varName
         let mut var_name = format!("{}", self.parse_name(4)?);
 
-        self.add_to_symbol_table(var_type.clone(), var_kind.clone(), var_name);
+        self.add_to_symbol_table(var_type.clone(), var_kind.clone(), var_name)?;
 
         // (, varName)*
         while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
@@ -150,7 +189,7 @@ impl<'a> JackCompiler<'a> {
 
             var_name = format!("{}", self.parse_name(4)?);
 
-            self.add_to_symbol_table(var_type.clone(), var_kind.clone(), var_name);
+            self.add_to_symbol_table(var_type.clone(), var_kind.clone(), var_name)?;
         }
 
         // ;
@@ -166,18 +205,27 @@ impl<'a> JackCompiler<'a> {
         self.arg_symbol_table = HashMap::new();
 
         // ( constructor | function | method )
-        match self.token_iterator.peek().unwrap() {
+        let function_kind = match self.token_iterator.peek().unwrap() {
             Token::Keyword(Keyword::Constructor) => {
-                self.vm_output += "  <subroutineDec>\n    <keyword> constructor </keyword>\n"
+                self.vm_output += "  <subroutineDec>\n    <keyword> constructor </keyword>\n";
+                FunctionKind::Jconstructor
             }
             Token::Keyword(Keyword::Function) => {
-                self.vm_output += "  <subroutineDec>\n    <keyword> function </keyword>\n"
+                self.vm_output += "  <subroutineDec>\n    <keyword> function </keyword>\n";
+                FunctionKind::Jfunction
             }
             Token::Keyword(Keyword::Method) => {
-                self.vm_output += "  <subroutineDec>\n    <keyword> method </keyword>\n"
+                self.vm_output += "  <subroutineDec>\n    <keyword> method </keyword>\n";
+                let class_name = self.class_name.clone();
+                self.add_to_symbol_table(
+                    JackVariableType::Jclass(class_name),
+                    VariableKind::Jarg,
+                    "this".to_string(),
+                )?;
+                FunctionKind::Jmethod
             }
             _ => return Ok(false),
-        }
+        };
         self.token_iterator.next();
 
         // ( 'void' | type)
@@ -213,14 +261,14 @@ impl<'a> JackCompiler<'a> {
             // if function has more than zero arguments
             let var_type = self.parse_type(6)?;
             let var_name = format!("{}", self.parse_name(6)?);
-            self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name);
+            self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name)?;
 
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "      <symbol> , </symbol>\n";
                 let var_type = self.parse_type(6)?;
                 let var_name = format!("{}", self.parse_name(6)?);
-                self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name);
+                self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name)?;
             }
         }
 
@@ -252,15 +300,14 @@ impl<'a> JackCompiler<'a> {
 
             // varName
             let var_name = format!("{}", self.parse_name(8)?);
-            self.add_to_symbol_table(var_type.clone(), VariableKind::Jvar, var_name);
-
+            self.add_to_symbol_table(var_type.clone(), VariableKind::Jvar, var_name)?;
 
             // (, varName)*
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "        <symbol> , </symbol>\n";
                 let var_name = format!("{}", self.parse_name(8)?);
-                self.add_to_symbol_table(var_type.clone(), VariableKind::Jvar, var_name);
+                self.add_to_symbol_table(var_type.clone(), VariableKind::Jvar, var_name)?;
             }
 
             // ;
