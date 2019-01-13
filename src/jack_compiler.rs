@@ -16,8 +16,8 @@ enum JackVariableType {
 
 #[derive(Debug, Clone)]
 struct SymbolTableEntry {
-    var_type: JackVariableType,
-    num: usize,
+    pub var_type: JackVariableType,
+    pub num: usize,
 }
 
 impl SymbolTableEntry {
@@ -110,6 +110,7 @@ impl<'a> JackCompiler<'a> {
                     self.static_symbol_table
                         .insert(var_name, SymbolTableEntry::new(var_type, len));
                 } else {
+                    panic!("ja");
                     return Err("This variable name is already in use!");
                 }
             }
@@ -121,6 +122,7 @@ impl<'a> JackCompiler<'a> {
                     self.field_symbol_table
                         .insert(var_name, SymbolTableEntry::new(var_type, len));
                 } else {
+                    panic!("ja");
                     return Err("This variable name is already in use!");
                 }
             }
@@ -132,6 +134,7 @@ impl<'a> JackCompiler<'a> {
                     self.var_symbol_table
                         .insert(var_name, SymbolTableEntry::new(var_type, len));
                 } else {
+                    panic!("ja");
                     return Err("This variable name is already in use!");
                 }
             }
@@ -143,11 +146,24 @@ impl<'a> JackCompiler<'a> {
                     self.arg_symbol_table
                         .insert(var_name, SymbolTableEntry::new(var_type, len));
                 } else {
+                    panic!("ja");
                     return Err("This variable name is already in use!");
                 }
             }
         }
         Ok(())
+    }
+
+    fn get_vm_code_for_var_name(&self, var_name: &str) -> Result<String,&'static str>  {
+        if let Some(entry) = self.var_symbol_table.get(var_name) {
+            Ok(format!("local {}", entry.num))
+        } else if let Some(entry) = self.arg_symbol_table.get(var_name) {
+            Ok(format!("argument {}", entry.num))
+        } else if let Some(entry) = self.field_symbol_table.get(var_name) { // ????
+            Ok(format!("field {}", entry.num))
+        } else {
+            return Err("This variable was not defined before");
+        }       
     }
 
     /// Main function
@@ -222,6 +238,7 @@ impl<'a> JackCompiler<'a> {
     fn parse_subroutine_dec(&mut self) -> Result<bool, &'static str> {
         // forget about last symbol table from last function and initialize new one
         self.arg_symbol_table = HashMap::new();
+        self.var_symbol_table = HashMap::new();
 
         // ( constructor | function | method )
         let function_kind = match self.token_iterator.peek().unwrap() {
@@ -274,6 +291,8 @@ impl<'a> JackCompiler<'a> {
             // if function has more than zero arguments
             let var_type = self.parse_type(6)?;
             let var_name = format!("{}", self.parse_name(6)?);
+            println!("{}",var_name );
+            println!("{:?}", self.arg_symbol_table);
             self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name)?;
 
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
@@ -294,7 +313,6 @@ impl<'a> JackCompiler<'a> {
     }
 
     fn parse_subroutine_body(&mut self) -> Result<(), &'static str> {
-        self.var_symbol_table = HashMap::new();
         // {
         self.parse_specific_symbol('{', 6)?;
 
@@ -350,16 +368,12 @@ impl<'a> JackCompiler<'a> {
     }
 
     fn parse_let_statement(&mut self, xml_indent: usize) -> Result<(), &'static str> {
-        self.vm_output += &format!("{:indent$}<letStatement>\n", "", indent = xml_indent);
-        self.vm_output += &format!(
-            "{:indent$}<keyword> let </keyword>\n",
-            "",
-            indent = xml_indent + 2
-        );
         self.token_iterator.next();
 
         // varName
-        self.parse_name(xml_indent + 2)?;
+        let var_name = self.parse_name(xml_indent + 2)?.to_owned();
+        println!("var_name = {}", var_name);        
+
         // [ expression ]
         if **self.token_iterator.peek().unwrap() == Token::Symbol('[') {
             self.parse_specific_symbol('[', xml_indent + 2)?;
@@ -374,7 +388,8 @@ impl<'a> JackCompiler<'a> {
         // ;
         self.parse_specific_symbol(';', xml_indent + 2)?;
 
-        self.vm_output += &format!("{:indent$}</letStatement>\n", "", indent = xml_indent);
+        self.vm_output += &format!("pop {}\n",&self.get_vm_code_for_var_name(&var_name)?);
+
         return Ok(());
     }
 
@@ -464,6 +479,10 @@ impl<'a> JackCompiler<'a> {
 
         self.parse_specific_symbol(';', xml_indent + 2)?;
 
+        // in the do statement we do not do anything with the return value from the subroutine call
+        // hence pop it somewhere to get rid of it
+        self.vm_output += "pop temp0\n"; 
+
         return Ok(());
     }
 
@@ -533,6 +552,7 @@ impl<'a> JackCompiler<'a> {
             Token::Symbol('-') => {
                 self.parse_specific_symbol('-', xml_indent + 2)?;
                 self.parse_term(xml_indent + 2)?;
+                self.vm_output += "neg\n";
             }
             Token::Symbol('~') => {
                 self.parse_specific_symbol('~', xml_indent + 2)?;
@@ -540,12 +560,6 @@ impl<'a> JackCompiler<'a> {
             }
             // varname | varname[expression] | subroutineCall
             Token::Identifier(name) => {
-                self.vm_output += &format!(
-                    "{:indent$}<identifier> {name} </identifier>\n",
-                    "",
-                    indent = xml_indent + 2,
-                    name = name
-                );
                 self.token_iterator.next();
                 match **self.token_iterator.peek().unwrap() {
                     // varName[expression]
@@ -565,7 +579,9 @@ impl<'a> JackCompiler<'a> {
                         self.parse_expression_list(xml_indent + 2)?;
                     }
                     // simply the var_name
-                    _ => {}
+                    _ => {
+                        self.vm_output += &format!("push {}\n", &self.get_vm_code_for_var_name(&name)?);
+                    }
                 }
             }
             Token::Symbol(_s) => return Err("This symbol is not a term"),
