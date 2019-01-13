@@ -69,7 +69,7 @@ fn main() {
         let mut output_file_name = str::replace(
             &input_file.into_os_string().into_string().unwrap(),
             ".jack",
-            "_parsed.xml",
+            ".vm",
         );
 
         let path = Path::new(&output_file_name);
