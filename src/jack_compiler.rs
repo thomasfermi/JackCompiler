@@ -122,6 +122,8 @@ impl<'a> JackCompiler<'a> {
     }
 
     /// Main function
+    /// TODO: Write custom Err structs and use them instead of static str
+    /// https://doc.rust-lang.org/rust-by-example/error/multiple_error_types/define_error_type.html
     pub fn parse_class(&mut self) -> Result<String, &'static str> {
         if Token::Keyword(Keyword::Class) == *self.token_iterator.next().unwrap() {
             // class
@@ -465,10 +467,6 @@ impl<'a> JackCompiler<'a> {
 
         self.parse_subroutine_call(xml_indent + 2)?;
 
-        while **self.token_iterator.peek().unwrap() != Token::Symbol(';') {
-            //TODO: replace with real implementation
-            self.token_iterator.next();
-        }
         self.parse_specific_symbol(';', xml_indent + 2)?;
 
         self.vm_output += &format!("{:indent$}</doStatement>\n", "", indent = xml_indent);
@@ -574,7 +572,6 @@ impl<'a> JackCompiler<'a> {
                 self.parse_term(xml_indent + 2)?;
             }
             // varname | varname[expression] | subroutineCall
-            //TODO: subroutine call handling should be done via the parse_subroutine function ideally :/
             Token::Identifier(name) => {
                 self.vm_output += &format!(
                     "{:indent$}<identifier> {name} </identifier>\n",
