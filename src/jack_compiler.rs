@@ -2,6 +2,7 @@
 
 use jack_tokenizer::{Keyword, Token};
 
+use std::collections::HashMap;
 use std::iter::Peekable;
 use std::slice::Iter;
 
@@ -14,53 +15,23 @@ enum JackVariableType {
 }
 
 #[derive(Debug, Clone)]
-enum JackClassVariableKind {
-    Jstatic(usize),
-    Jfield(usize),
+struct SymbolTableEntry {
+    var_type: JackVariableType,
+    num: usize,
 }
 
-#[derive(Debug, Clone)]
-enum JackMethodVariableKind{
-    Jargument(usize),
-    Jvar(usize),
-}
-
-#[derive(Debug, Clone)]
-struct JackClassSymbolTableEntry{
-    var_name : String, 
-    var_type : JackVariableType,
-    var_kind : JackClassVariableKind,
-}
-
-#[derive(Debug, Clone)]
-struct JackClassSymbolTable { //TODO: Should be hash table, so that variables can be fetched quickly. 
-    entries : Vec<JackClassSymbolTableEntry>,
-    num_fields : usize,
-    num_statics : usize,
-}
-
-#[derive(Debug, Clone)]
-struct JackMethodSymbolTable {
-    entries : Vec<JackMethodSymbolTableEntry>,
-    num_args : usize,
-    num_vars : usize,
-}
-
-#[derive(Debug, Clone)]
-struct JackMethodSymbolTableEntry{
-    var_name : String,
-    var_type : JackVariableType,
-    var_kind : JackMethodVariableKind,
-}
-
-impl JackMethodSymbolTableEntry {
-    fn new(var_name:String, var_type:JackVariableType, var_kind:JackMethodVariableKind) -> Self {
-        JackMethodSymbolTableEntry {
-            var_name,
-            var_type,
-            var_kind,
-        }
+impl SymbolTableEntry {
+    fn new(var_type: JackVariableType, num:usize) -> Self {
+        SymbolTableEntry { var_type, num }
     }
+}
+
+#[derive(Debug, Clone)]
+enum VariableKind {
+    Jstatic,
+    Jfield,
+    Jvar,
+    Jarg,
 }
 
 
@@ -68,9 +39,12 @@ impl JackMethodSymbolTableEntry {
 pub struct JackCompiler<'a> {
     token_iterator: Peekable<Iter<'a, Token>>,
     vm_output: String,
-    class_name : String,
-    class_symbol_table : JackClassSymbolTable,
-    method_symbol_table : JackMethodSymbolTable,
+    class_name: String,
+    field_symbol_table: HashMap<String,SymbolTableEntry>,
+    static_symbol_table: HashMap<String,SymbolTableEntry>,
+    var_symbol_table: HashMap<String,SymbolTableEntry>,
+    arg_symbol_table: HashMap<String,SymbolTableEntry>,
+
 }
 
 impl<'a> JackCompiler<'a> {
@@ -80,10 +54,34 @@ impl<'a> JackCompiler<'a> {
             token_iterator: tokens.iter().peekable(),
             vm_output: "".to_string(),
             class_name: "".to_string(),
-            class_symbol_table : JackClassSymbolTable{entries:vec![], num_fields:0, num_statics:0},
-            method_symbol_table : JackMethodSymbolTable{entries:vec![], num_args:0, num_vars:0},
+            field_symbol_table : HashMap::new(),
+            static_symbol_table : HashMap::new(),
+            var_symbol_table : HashMap::new(),
+            arg_symbol_table : HashMap::new(),
         }
     }
+
+    fn add_to_symbol_table(&mut self, var_type : JackVariableType, var_kind : VariableKind, var_name : String) {
+        match var_kind {
+            VariableKind::Jstatic => {
+                let len = self.static_symbol_table.len();
+                self.static_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
+            },
+            VariableKind::Jfield => {
+                let len = self.field_symbol_table.len();
+                self.field_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
+            },
+            VariableKind::Jvar => {
+                let len = self.var_symbol_table.len();
+                self.var_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
+            },
+            VariableKind::Jarg => {
+                let len = self.arg_symbol_table.len();
+                self.arg_symbol_table.insert(var_name, SymbolTableEntry::new(var_type, len));
+            }
+        }
+    }
+
     /// Main function
     pub fn parse_class(&mut self) -> Result<String, &'static str> {
         if Token::Keyword(Keyword::Class) == *self.token_iterator.next().unwrap() {
@@ -92,7 +90,7 @@ impl<'a> JackCompiler<'a> {
             self.vm_output += "  <keyword> class </keyword>\n";
 
             // className
-            self.class_name = format!("{}",self.parse_name(2)?);
+            self.class_name = format!("{}", self.parse_name(2)?);
 
             // {
             self.parse_specific_symbol('{', 2)?;
@@ -101,11 +99,13 @@ impl<'a> JackCompiler<'a> {
             while self.parse_class_var_dec()? {
                 // do nothing
             }
-            println!("table={:?}", self.class_symbol_table);
+            println!("field_table={:?}", self.field_symbol_table);
+            println!("static_table={:?}", self.static_symbol_table);
 
             // subRoutineDec*
             while self.parse_subroutine_dec()? {
-                println!("table={:?}", self.method_symbol_table);
+                println!("var_table={:?}", self.var_symbol_table);
+                println!("arg_table={:?}", self.arg_symbol_table);
                 // do nothing
             }
 
@@ -122,16 +122,14 @@ impl<'a> JackCompiler<'a> {
 
     fn parse_class_var_dec(&mut self) -> Result<bool, &'static str> {
         // ( static | field )
-        let mut var_kind = match self.token_iterator.peek().unwrap() {
+        let var_kind = match self.token_iterator.peek().unwrap() {
             Token::Keyword(Keyword::Static) => {
-                self.vm_output += "  <classVarDec>\n    <keyword> static </keyword>\n"; 
-                self.class_symbol_table.num_statics+=1;               
-                JackClassVariableKind::Jstatic(self.class_symbol_table.num_statics-1)
+                self.vm_output += "  <classVarDec>\n    <keyword> static </keyword>\n";
+                VariableKind::Jstatic
             }
             Token::Keyword(Keyword::Field) => {
                 self.vm_output += "  <classVarDec>\n    <keyword> field </keyword>\n";
-                self.class_symbol_table.num_fields+=1;
-                JackClassVariableKind::Jfield(self.class_symbol_table.num_fields-1)              
+                VariableKind::Jfield
             }
             _ => return Ok(false),
         };
@@ -141,40 +139,18 @@ impl<'a> JackCompiler<'a> {
         let var_type = self.parse_type(4)?;
 
         // varName
-        let mut var_name = format!("{}",self.parse_name(4)?);
+        let mut var_name = format!("{}", self.parse_name(4)?);
 
-        self.class_symbol_table.entries.push(
-            JackClassSymbolTableEntry{
-               var_name,
-               var_type : var_type.clone(),
-               var_kind : var_kind.clone(),                
-            }
-        );
+        self.add_to_symbol_table(var_type.clone(), var_kind.clone(), var_name);
 
         // (, varName)*
         while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
             self.token_iterator.next(); // peek successful, hence next()
             self.vm_output += "    <symbol> , </symbol>\n";
-            
-            var_kind = match var_kind {
-                JackClassVariableKind::Jstatic(_num) => {
-                    self.class_symbol_table.num_statics+=1;
-                    JackClassVariableKind::Jstatic(self.class_symbol_table.num_statics-1)
-                }
-                JackClassVariableKind::Jfield(_num) => {
-                    self.class_symbol_table.num_fields+=1;
-                    JackClassVariableKind::Jfield(self.class_symbol_table.num_fields-1)
-                }
-            };
-            var_name = format!("{}",self.parse_name(4)?);
 
-            self.class_symbol_table.entries.push(
-                JackClassSymbolTableEntry{
-                    var_name,
-                    var_type : var_type.clone(),
-                    var_kind : var_kind.clone(),                
-                }
-            );
+            var_name = format!("{}", self.parse_name(4)?);
+
+            self.add_to_symbol_table(var_type.clone(), var_kind.clone(), var_name);
         }
 
         // ;
@@ -187,7 +163,7 @@ impl<'a> JackCompiler<'a> {
 
     fn parse_subroutine_dec(&mut self) -> Result<bool, &'static str> {
         // forget about last symbol table from last function and initialize new one
-        self.method_symbol_table = JackMethodSymbolTable{entries:vec![], num_args:0, num_vars:0};
+        self.arg_symbol_table = HashMap::new();
 
         // ( constructor | function | method )
         match self.token_iterator.peek().unwrap() {
@@ -233,23 +209,18 @@ impl<'a> JackCompiler<'a> {
         self.parse_specific_symbol('(', 4)?;
         self.vm_output += "    <parameterList>\n";
 
-        if **self.token_iterator.peek().unwrap() != Token::Symbol(')') { // if function has more than zero arguments
+        if **self.token_iterator.peek().unwrap() != Token::Symbol(')') {
+            // if function has more than zero arguments
             let var_type = self.parse_type(6)?;
-            let var_name = format!("{}",self.parse_name(6)?);
-            self.method_symbol_table.entries.push(
-                    JackMethodSymbolTableEntry::new(var_name, var_type, JackMethodVariableKind::Jargument(0))
-            );
-            self.method_symbol_table.num_args=1;
+            let var_name = format!("{}", self.parse_name(6)?);
+            self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name);
 
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "      <symbol> , </symbol>\n";
                 let var_type = self.parse_type(6)?;
-                let var_name = format!("{}",self.parse_name(6)?);
-                self.method_symbol_table.entries.push(
-                    JackMethodSymbolTableEntry::new(var_name, var_type, JackMethodVariableKind::Jargument(self.method_symbol_table.num_args))  
-                );
-                self.method_symbol_table.num_args+=1;
+                let var_name = format!("{}", self.parse_name(6)?);
+                self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name);
             }
         }
 
@@ -267,6 +238,7 @@ impl<'a> JackCompiler<'a> {
     }
 
     fn parse_subroutine_body(&mut self) -> Result<(), &'static str> {
+        self.var_symbol_table = HashMap::new();
         // {
         self.parse_specific_symbol('{', 6)?;
 
@@ -279,24 +251,16 @@ impl<'a> JackCompiler<'a> {
             let var_type = self.parse_type(8)?;
 
             // varName
-            let var_name = format!("{}",self.parse_name(8)?);
+            let var_name = format!("{}", self.parse_name(8)?);
+            self.add_to_symbol_table(var_type.clone(), VariableKind::Jvar, var_name);
 
-            
-            self.method_symbol_table.entries.push(
-                JackMethodSymbolTableEntry::new(var_name,var_type.clone(),JackMethodVariableKind::Jvar(self.method_symbol_table.num_vars))
-            );
-            self.method_symbol_table.num_vars+=1;
 
             // (, varName)*
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
                 self.vm_output += "        <symbol> , </symbol>\n";
-                let var_name = format!("{}",self.parse_name(8)?);
-
-                self.method_symbol_table.entries.push(
-                    JackMethodSymbolTableEntry::new(var_name,var_type.clone(),JackMethodVariableKind::Jvar(self.method_symbol_table.num_vars))
-                );
-                self.method_symbol_table.num_vars+=1;
+                let var_name = format!("{}", self.parse_name(8)?);
+                self.add_to_symbol_table(var_type.clone(), VariableKind::Jvar, var_name);
             }
 
             // ;
@@ -660,31 +624,31 @@ impl<'a> JackCompiler<'a> {
                     id = identifier
                 );
                 Ok(JackVariableType::Jclass(identifier.to_string()))
-            },
-            Token::Keyword(Keyword::Int)=> {
+            }
+            Token::Keyword(Keyword::Int) => {
                 self.vm_output += &format!(
                     "{:indent$}<keyword> int </keyword>\n",
                     "",
                     indent = xml_indent
                 );
                 Ok(JackVariableType::Jint)
-            },
-            Token::Keyword(Keyword::Char)=> {
+            }
+            Token::Keyword(Keyword::Char) => {
                 self.vm_output += &format!(
                     "{:indent$}<keyword> char </keyword>\n",
                     "",
                     indent = xml_indent
                 );
                 Ok(JackVariableType::Jchar)
-            },
-            Token::Keyword(Keyword::Boolean)=> {
+            }
+            Token::Keyword(Keyword::Boolean) => {
                 self.vm_output += &format!(
                     "{:indent$}<keyword> boolean </keyword>\n",
                     "",
                     indent = xml_indent
                 );
                 Ok(JackVariableType::Jboolean)
-            },
+            }
             _ => Err("Expected a type! Type has to be int, char, boolean, or class name!"),
         }
     }
