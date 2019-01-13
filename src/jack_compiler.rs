@@ -1,4 +1,7 @@
 //! jack_compiler
+extern crate peek_nth;
+
+use self::peek_nth::{IteratorExt, PeekableNth};
 
 use jack_tokenizer::{Keyword, Token};
 
@@ -72,7 +75,7 @@ impl JackOperation {
 
 /// JackCompiler struct
 pub struct JackCompiler<'a> {
-    token_iterator: Peekable<Iter<'a, Token>>,
+    token_iterator: PeekableNth<Iter<'a, Token>>,
     vm_output: String,
     class_name: String,
     field_symbol_table: HashMap<String, SymbolTableEntry>,
@@ -85,7 +88,7 @@ impl<'a> JackCompiler<'a> {
     /// Constructor
     pub fn new(tokens: &'a [Token]) -> Self {
         JackCompiler {
-            token_iterator: tokens.iter().peekable(),
+            token_iterator: tokens.iter().peekable_nth(),
             vm_output: "".to_string(),
             class_name: "".to_string(),
             field_symbol_table: HashMap::new(),
@@ -481,13 +484,13 @@ impl<'a> JackCompiler<'a> {
 
         // in the do statement we do not do anything with the return value from the subroutine call
         // hence pop it somewhere to get rid of it
-        self.vm_output += "pop temp0\n"; 
+        self.vm_output += "pop temp 0\n"; 
 
         return Ok(());
     }
 
     fn parse_return_statement(&mut self, xml_indent: usize) -> Result<(), &'static str> {
-        self.vm_output += "pop temp 0\npush constant 0\nreturn";
+        self.vm_output += "push constant 0\nreturn\n"; //TODO push constant 0 only if void function, right?
         self.token_iterator.next();
 
         if **self.token_iterator.peek().unwrap() != Token::Symbol(';') {
@@ -560,26 +563,21 @@ impl<'a> JackCompiler<'a> {
             }
             // varname | varname[expression] | subroutineCall
             Token::Identifier(name) => {
-                self.token_iterator.next();
-                match **self.token_iterator.peek().unwrap() {
+                match **self.token_iterator.peek_nth(1).unwrap() {
                     // varName[expression]
                     Token::Symbol('[') => {
+                        self.token_iterator.next();
                         self.parse_specific_symbol('[', xml_indent + 2)?;
                         self.parse_expression(xml_indent + 2)?;
                         self.parse_specific_symbol(']', xml_indent + 2)?;
                     }
-                    // var_name.function_name()
-                    Token::Symbol('.') => {
-                        self.parse_specific_symbol('.', xml_indent + 2)?;
-                        self.parse_name(xml_indent + 2)?;
-                        self.parse_expression_list(xml_indent + 2)?;
-                    }
-                    // function_name()
-                    Token::Symbol('(') => {
-                        self.parse_expression_list(xml_indent + 2)?;
+                    // subroutinecall, which is var_name.function_name() or function_name()
+                    Token::Symbol('.') |  Token::Symbol('(') => {
+                        self.parse_subroutine_call(0)?;
                     }
                     // simply the var_name
                     _ => {
+                        self.token_iterator.next();
                         self.vm_output += &format!("push {}\n", &self.get_vm_code_for_var_name(&name)?);
                     }
                 }

@@ -7,3 +7,4 @@ authors = ["thomasfermi <mario.theers@gmail.com>"]
 clap = "2.32.0"
 glob = "0.2.11"
 regex = "1.1.0"
+peek-nth = "0.2.0"
