@@ -83,6 +83,7 @@ pub struct JackCompiler<'a> {
     arg_symbol_table: HashMap<String, SymbolTableEntry>,
     if_label_num : usize,
     while_label_num : usize,
+    currently_in_void_function : bool,
 }
 
 impl<'a> JackCompiler<'a> {
@@ -98,6 +99,7 @@ impl<'a> JackCompiler<'a> {
             arg_symbol_table: HashMap::new(),
             if_label_num : 0,
             while_label_num : 0,
+            currently_in_void_function : false,
         }
     }
 
@@ -268,11 +270,15 @@ impl<'a> JackCompiler<'a> {
         self.token_iterator.next();
 
         // ( 'void' | type)
+        self.currently_in_void_function = false;
         let return_type = match self.token_iterator.next().unwrap() {
             Token::Keyword(Keyword::Int)     => Some(JackVariableType::Jint),
             Token::Keyword(Keyword::Char)    => Some(JackVariableType::Jchar),
             Token::Keyword(Keyword::Boolean) => Some(JackVariableType::Jboolean),
-            Token::Keyword(Keyword::Void)    => None,
+            Token::Keyword(Keyword::Void)    => {
+                self.currently_in_void_function = true;
+                None
+            },
             Token::Identifier(id)            => Some(JackVariableType::Jclass(id.to_owned())),
             _ => {
                 return Err(
@@ -280,6 +286,8 @@ impl<'a> JackCompiler<'a> {
                 )
             }
         };
+        
+        
 
         // subRoutineName
         let fname = match self.token_iterator.next().unwrap() {
@@ -303,7 +311,6 @@ impl<'a> JackCompiler<'a> {
 
             while **self.token_iterator.peek().unwrap() == Token::Symbol(',') {
                 self.token_iterator.next();
-                self.vm_output += "      <symbol> , </symbol>\n";
                 let var_type = self.parse_type(6)?;
                 let var_name = format!("{}", self.parse_name(6)?);
                 self.add_to_symbol_table(var_type, VariableKind::Jarg, var_name)?;
@@ -412,8 +419,9 @@ impl<'a> JackCompiler<'a> {
 
         self.parse_specific_symbol(')', 0)?;
 
-        self.vm_output += "not\n";
-        self.vm_output += &format!("if-goto L1_if_label_{}\n", current_if_statement_num);
+        self.vm_output += &format!("if-goto {}_IF_TRUE{}\n", self.class_name, current_if_statement_num);
+        self.vm_output += &format!("goto {}_IF_FALSE{}\n", self.class_name, current_if_statement_num);
+        self.vm_output += &format!("label {}_IF_TRUE{}\n", self.class_name, current_if_statement_num);
 
         // { statements }
         self.parse_specific_symbol('{',0)?;
@@ -422,9 +430,9 @@ impl<'a> JackCompiler<'a> {
             //do nothing
         }
 
-        self.vm_output += &format!("goto L2_if_label_{}\n", current_if_statement_num);
+        self.vm_output += &format!("goto {}_IF_END{}\n", self.class_name, current_if_statement_num);
 
-        self.vm_output += &format!("label L1_if_label_{}\n", current_if_statement_num);
+        self.vm_output += &format!("label {}_IF_FALSE{}\n", self.class_name, current_if_statement_num);
 
         self.parse_specific_symbol('}', 0)?;
 
@@ -438,19 +446,18 @@ impl<'a> JackCompiler<'a> {
             }
             self.parse_specific_symbol('}', 0)?;
         }
-        self.vm_output += &format!("label L2_if_label_{}\n", current_if_statement_num);
+        self.vm_output += &format!("label {}_IF_END{}\n", self.class_name, current_if_statement_num);
 
         return Ok(());
     }
 
     fn parse_while_statement(&mut self, xml_indent: usize) -> Result<(), &'static str> {
-        self.vm_output += &format!("{:indent$}<whileStatement>\n", "", indent = xml_indent);
-        self.vm_output += &format!(
-            "{:indent$}<keyword> while </keyword>\n",
-            "",
-            indent = xml_indent + 2
-        );
         self.token_iterator.next();
+
+        let current_while_statement_num =  self.while_label_num;
+        self.while_label_num += 1;
+
+        self.vm_output += &format!("label {}_WHILE_EXP{}\n", self.class_name, current_while_statement_num);
 
         // ( expression )
         self.parse_specific_symbol('(', xml_indent + 2)?;
@@ -459,17 +466,19 @@ impl<'a> JackCompiler<'a> {
 
         self.parse_specific_symbol(')', xml_indent + 2)?;
 
+        self.vm_output += "not\n";
+        self.vm_output += &format!("if-goto {}_WHILE_END{}\n", self.class_name, current_while_statement_num);
+
         // { statements }
         self.parse_specific_symbol('{', xml_indent + 2)?;
-        self.vm_output += &format!("{:indent$}<statements>\n", "", indent = xml_indent + 2);
         while self.parse_statement(xml_indent + 4)? {
             // do nothing
         }
-        self.vm_output += &format!("{:indent$}</statements>\n", "", indent = xml_indent + 2);
+        self.vm_output += &format!("goto {}_WHILE_EXP{}\n", self.class_name, current_while_statement_num);
 
         self.parse_specific_symbol('}', xml_indent + 2)?;
 
-        self.vm_output += &format!("{:indent$}</whileStatement>\n", "", indent = xml_indent);
+        self.vm_output += &format!("label {}_WHILE_END{}\n", self.class_name, current_while_statement_num);
         return Ok(());
     }
 
@@ -488,13 +497,16 @@ impl<'a> JackCompiler<'a> {
     }
 
     fn parse_return_statement(&mut self, xml_indent: usize) -> Result<(), &'static str> {
-        self.vm_output += "push constant 0\nreturn\n"; //TODO push constant 0 only if void function, right?
+        if self.currently_in_void_function {
+            self.vm_output += "push constant 0\n";
+        }
         self.token_iterator.next();
 
         if **self.token_iterator.peek().unwrap() != Token::Symbol(';') {
             self.parse_expression(xml_indent + 2)?;
         }
         self.parse_specific_symbol(';', xml_indent + 2)?;
+        self.vm_output += "return\n";
 
         return Ok(());
     }
@@ -524,7 +536,7 @@ impl<'a> JackCompiler<'a> {
                 self.token_iterator.next();
             }
             Token::Keyword(Keyword::True) => {
-                self.vm_output += "push constant 1\nneg\n";
+                self.vm_output += "push constant 0\nnot\n";
                 self.token_iterator.next();
             }
             Token::Keyword(Keyword::False) => {
@@ -558,6 +570,7 @@ impl<'a> JackCompiler<'a> {
             Token::Symbol('~') => {
                 self.parse_specific_symbol('~', xml_indent + 2)?;
                 self.parse_term(xml_indent + 2)?;
+                self.vm_output += "not\n";
             }
             // varname | varname[expression] | subroutineCall
             Token::Identifier(name) => {
