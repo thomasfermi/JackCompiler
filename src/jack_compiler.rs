@@ -6,7 +6,6 @@ use self::peek_nth::{IteratorExt, PeekableNth};
 use jack_tokenizer::{Keyword, Token};
 
 use std::collections::HashMap;
-use std::iter::Peekable;
 use std::slice::Iter;
 
 #[derive(Debug, Clone)]
@@ -82,6 +81,8 @@ pub struct JackCompiler<'a> {
     static_symbol_table: HashMap<String, SymbolTableEntry>,
     var_symbol_table: HashMap<String, SymbolTableEntry>,
     arg_symbol_table: HashMap<String, SymbolTableEntry>,
+    if_label_num : usize,
+    while_label_num : usize,
 }
 
 impl<'a> JackCompiler<'a> {
@@ -95,6 +96,8 @@ impl<'a> JackCompiler<'a> {
             static_symbol_table: HashMap::new(),
             var_symbol_table: HashMap::new(),
             arg_symbol_table: HashMap::new(),
+            if_label_num : 0,
+            while_label_num : 0,
         }
     }
 
@@ -357,7 +360,7 @@ impl<'a> JackCompiler<'a> {
         match self.token_iterator.peek().unwrap() {
             Token::Keyword(kw) => match kw {
                 Keyword::Let => self.parse_let_statement(xml_indent)?,
-                Keyword::If => self.parse_if_statement(xml_indent)?,
+                Keyword::If => self.parse_if_statement()?,
                 Keyword::While => self.parse_while_statement(xml_indent)?,
                 Keyword::Do => self.parse_do_statement(xml_indent)?,
                 Keyword::Return => self.parse_return_statement(xml_indent)?,
@@ -396,52 +399,47 @@ impl<'a> JackCompiler<'a> {
         return Ok(());
     }
 
-    fn parse_if_statement(&mut self, xml_indent: usize) -> Result<(), &'static str> {
-        self.vm_output += &format!("{:indent$}<ifStatement>\n", "", indent = xml_indent);
-        self.vm_output += &format!(
-            "{:indent$}<keyword> if </keyword>\n",
-            "",
-            indent = xml_indent + 2
-        );
+    fn parse_if_statement(&mut self) -> Result<(), &'static str> {
         self.token_iterator.next();
 
+        let current_if_statement_num =  self.if_label_num;
+        self.if_label_num += 1;
+
         // ( expression )
-        self.parse_specific_symbol('(', xml_indent + 2)?;
+        self.parse_specific_symbol('(', 0)?;
 
-        self.parse_expression(xml_indent + 2)?;
+        self.parse_expression(0)?;
 
-        self.parse_specific_symbol(')', xml_indent + 2)?;
+        self.parse_specific_symbol(')', 0)?;
+
+        self.vm_output += "not\n";
+        self.vm_output += &format!("if-goto L1_if_label_{}\n", current_if_statement_num);
 
         // { statements }
-        self.parse_specific_symbol('{', xml_indent + 2)?;
+        self.parse_specific_symbol('{',0)?;
 
-        self.vm_output += &format!("{:indent$}<statements>\n", "", indent = xml_indent + 2);
-        while self.parse_statement(xml_indent + 4)? {
+        while self.parse_statement(0)? {
             //do nothing
         }
-        self.vm_output += &format!("{:indent$}</statements>\n", "", indent = xml_indent + 2);
 
-        self.parse_specific_symbol('}', xml_indent + 2)?;
+        self.vm_output += &format!("goto L2_if_label_{}\n", current_if_statement_num);
+
+        self.vm_output += &format!("label L1_if_label_{}\n", current_if_statement_num);
+
+        self.parse_specific_symbol('}', 0)?;
 
         if Token::Keyword(Keyword::Else) == **self.token_iterator.peek().unwrap() {
             // else
             self.token_iterator.next();
-            self.vm_output += &format!(
-                "{:indent$}<keyword> else </keyword>\n",
-                "",
-                indent = xml_indent + 2
-            );
             // { statements }
-            self.parse_specific_symbol('{', xml_indent + 2)?;
-            self.vm_output += &format!("{:indent$}<statements>\n", "", indent = xml_indent + 2);
-            while self.parse_statement(xml_indent + 4)? {
+            self.parse_specific_symbol('{', 0)?;
+            while self.parse_statement(0)? {
                 // do nothing
             }
-            self.vm_output += &format!("{:indent$}</statements>\n", "", indent = xml_indent + 2);
-            self.parse_specific_symbol('}', xml_indent + 2)?;
+            self.parse_specific_symbol('}', 0)?;
         }
+        self.vm_output += &format!("label L2_if_label_{}\n", current_if_statement_num);
 
-        self.vm_output += &format!("{:indent$}</ifStatement>\n", "", indent = xml_indent);
         return Ok(());
     }
 
