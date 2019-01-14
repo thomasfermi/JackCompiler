@@ -552,12 +552,10 @@ impl<'a> JackCompiler<'a> {
                 self.token_iterator.next();
             }
             Token::StringConstant(s) => {
-                self.vm_output += &format!(
-                    "{:indent$}<stringConstant> {s:} </stringConstant>\n",
-                    "",
-                    indent = xml_indent + 2,
-                    s = s
-                );
+                self.vm_output += &format!("push constant {}\ncall String.new 1\n", s.len());
+                for c in s.chars(){
+                    self.vm_output += &format!("push constant {:?} \ncall String.appendChar 1\n", c.to_digit(10));
+                }
                 self.token_iterator.next();
             }
             Token::Keyword(Keyword::True) => {
