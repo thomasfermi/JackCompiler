@@ -36,7 +36,7 @@ enum VariableKind {
     Jarg,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 enum FunctionKind {
     Jmethod,
     Jconstructor,
@@ -168,13 +168,25 @@ impl<'a> JackCompiler<'a> {
         } else if let Some(entry) = self.arg_symbol_table.get(var_name) {
             Ok(format!("argument {}", entry.num))
         } else if let Some(entry) = self.field_symbol_table.get(var_name) { // ????
-            Ok(format!("field {}", entry.num))
+            Ok(format!("this {}", entry.num))
         } else {
             return Err("This variable was not defined before");
         }       
     }
 
-    /// Main function
+    fn get_symbol_table_entry(&self, var_name: &str) -> Result<&SymbolTableEntry,&'static str>  {
+        if let Some(entry) = self.var_symbol_table.get(var_name) {
+            Ok(entry)
+        } else if let Some(entry) = self.arg_symbol_table.get(var_name) {
+            Ok(entry)
+        } else if let Some(entry) = self.field_symbol_table.get(var_name) { // ????
+            Ok(entry)
+        } else {
+            return Err("This variable is not in the symbol table.");
+        }       
+    }
+
+    /// Main function. Returns a string containing VM code corresponding to a Jack class
     /// TODO: Write custom Err structs and use them instead of static str
     /// https://doc.rust-lang.org/rust-by-example/error/multiple_error_types/define_error_type.html
     pub fn parse_class(&mut self) -> Result<String, &'static str> {
@@ -279,15 +291,19 @@ impl<'a> JackCompiler<'a> {
                 self.currently_in_void_function = true;
                 None
             },
-            Token::Identifier(id)            => Some(JackVariableType::Jclass(id.to_owned())),
+            Token::Identifier(id)            => {
+                if function_kind == FunctionKind::Jconstructor && *id != self.class_name {
+                    return Err("The return type of a constructor must be the class type!");
+                }
+                Some(JackVariableType::Jclass(id.to_owned()))
+            },
             _ => {
                 return Err(
                     "Expected void or a type! Type has to be int, char, boolean, or class name!",
                 )
             }
         };
-        
-        
+                
 
         // subRoutineName
         let fname = match self.token_iterator.next().unwrap() {
@@ -320,12 +336,7 @@ impl<'a> JackCompiler<'a> {
         self.parse_specific_symbol(')', 4)?;
 
         // subRoutineBody
-        self.parse_subroutine_body()?;
 
-        return Ok(true);
-    }
-
-    fn parse_subroutine_body(&mut self) -> Result<(), &'static str> {
         // {
         self.parse_specific_symbol('{', 6)?;
 
@@ -352,6 +363,17 @@ impl<'a> JackCompiler<'a> {
 
         self.vm_output += &format!("{nlocals:}\n",nlocals=self.var_symbol_table.len());
 
+
+        match function_kind {
+            FunctionKind::Jmethod => self.vm_output += "push argument 0\npop pointer 0\n",
+            FunctionKind::Jconstructor => {
+                self.vm_output += &format!("push constant {}\n", self.field_symbol_table.len());
+                self.vm_output += "call Memory.alloc 1\n";
+                self.vm_output += "pop pointer 0\n";
+            },
+            FunctionKind::Jfunction => {},
+        }  
+
         // statements
         while self.parse_statement(8)? {
             // do nothing
@@ -360,8 +382,11 @@ impl<'a> JackCompiler<'a> {
         // }
         self.parse_specific_symbol('}', 6)?;
 
-        return Ok(());
+        return Ok(true);
     }
+
+
+
 
     fn parse_statement(&mut self, xml_indent: usize) -> Result<bool, &'static str> {
         match self.token_iterator.peek().unwrap() {
@@ -548,11 +573,7 @@ impl<'a> JackCompiler<'a> {
                 self.token_iterator.next();
             }
             Token::Keyword(Keyword::This) => {
-                self.vm_output += &format!(
-                    "{:indent$}<keyword> this </keyword>\n",
-                    "",
-                    indent = xml_indent + 2
-                );
+                self.vm_output += "push pointer 0\n";
                 self.token_iterator.next();
             }
             // (expression)
@@ -623,12 +644,29 @@ impl<'a> JackCompiler<'a> {
 
     fn parse_subroutine_call(&mut self, xml_indent: usize) -> Result<(), &'static str> {
         let mut fun_name = self.parse_name(xml_indent)?.to_owned();
+        let mut num_args = 0;
         // if a dot follows, we have the case className|varName . subRoutineName, otherwise it is just subroutineName
-        if **self.token_iterator.peek().unwrap() == Token::Symbol('.') {
+        if **self.token_iterator.peek().unwrap() == Token::Symbol('.') { // something like Screen.draw()
             self.parse_specific_symbol('.', xml_indent)?;
+            // if the left side of the dot has an object from our symbol table, we got to push it to the stack as an additional argument
+            match self.get_vm_code_for_var_name(&fun_name) {
+                Ok(vm_code) => {
+                    if let JackVariableType::Jclass(ref class_name) = self.get_symbol_table_entry(&fun_name)?.var_type{
+                        fun_name = class_name.to_owned();
+                    }
+                    self.vm_output+= &format!("push {}\n", vm_code);
+                    num_args = 1;
+                },
+                Err(_) => { } // fun_name not it symbol table, hence not an object
+            }
             fun_name += &format!(".{}", self.parse_name(xml_indent)?);
+        } else { // something like draw()
+            // Assuming what we call is a method, we need to add the object as argument
+            self.vm_output += &format!("push pointer 0\n");
+            num_args = 1;
+            fun_name = format!("{}.{}",self.class_name, fun_name);
         }
-        let num_args = self.parse_expression_list(xml_indent)?;
+        num_args += self.parse_expression_list(xml_indent)?; //TODO: what if it was a function? Then we do not need that plus one.
         self.vm_output += &format!("call {} {}\n",fun_name, num_args);
 
         return Ok(());
