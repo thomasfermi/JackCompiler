@@ -418,6 +418,7 @@ impl<'a> JackCompiler<'a> {
             self.parse_specific_symbol('[', xml_indent + 2)?;
             self.parse_expression(xml_indent + 2)?;
             self.parse_specific_symbol(']', xml_indent + 2)?;
+            self.vm_output += &format!("push {}\n", &self.get_vm_code_for_var_name(&var_name)?);
             self.vm_output += "add\n";
             left_hand_side_is_array = true;
         }
@@ -430,10 +431,10 @@ impl<'a> JackCompiler<'a> {
         self.parse_specific_symbol(';', xml_indent + 2)?;
 
         if left_hand_side_is_array {
-            self.vm_output += "pop temp0\npop pointer 1\npush temp 0\npop that 0";
+            self.vm_output += "pop temp0\npop pointer 1\npush temp 0\npop that 0\n";
+        } else {
+            self.vm_output += &format!("pop {}\n",&self.get_vm_code_for_var_name(&var_name)?);
         }
-
-        self.vm_output += &format!("pop {}\n",&self.get_vm_code_for_var_name(&var_name)?);
 
         return Ok(());
     }
@@ -561,7 +562,7 @@ impl<'a> JackCompiler<'a> {
             Token::StringConstant(s) => {
                 self.vm_output += &format!("push constant {}\ncall String.new 1\n", s.len());
                 for c in s.chars(){
-                    self.vm_output += &format!("push constant {:?} \ncall String.appendChar 1\n", c.to_digit(10));
+                    self.vm_output += &format!("push constant {:?}\ncall String.appendChar 2\n", c as u32);
                 }
                 self.token_iterator.next();
             }
@@ -604,11 +605,11 @@ impl<'a> JackCompiler<'a> {
                     // varName[expression]
                     Token::Symbol('[') => {
                         self.token_iterator.next();
-                        self.vm_output += &format!("push {}\n", &self.get_vm_code_for_var_name(&name)?);
                         self.parse_specific_symbol('[', xml_indent + 2)?;
                         self.parse_expression(xml_indent + 2)?;
                         self.parse_specific_symbol(']', xml_indent + 2)?;
-                        self.vm_output += "add\npop pointer 1\npush that 0";                      
+                        self.vm_output += &format!("push {}\n", &self.get_vm_code_for_var_name(&name)?);
+                        self.vm_output += "add\npop pointer 1\npush that 0\n";                      
                     }
                     // subroutinecall, which is var_name.function_name() or function_name()
                     Token::Symbol('.') |  Token::Symbol('(') => {
