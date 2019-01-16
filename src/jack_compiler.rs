@@ -169,6 +169,8 @@ impl<'a> JackCompiler<'a> {
             Ok(format!("argument {}", entry.num))
         } else if let Some(entry) = self.field_symbol_table.get(var_name) { // ????
             Ok(format!("this {}", entry.num))
+        } else if let Some(entry) = self.static_symbol_table.get(var_name) { // ????
+            Ok(format!("static {}", entry.num))
         } else {
             return Err("This variable was not defined before");
         }       
@@ -431,7 +433,7 @@ impl<'a> JackCompiler<'a> {
         self.parse_specific_symbol(';', xml_indent + 2)?;
 
         if left_hand_side_is_array {
-            self.vm_output += "pop temp0\npop pointer 1\npush temp 0\npop that 0\n";
+            self.vm_output += "pop temp 0\npop pointer 1\npush temp 0\npop that 0\n";
         } else {
             self.vm_output += &format!("pop {}\n",&self.get_vm_code_for_var_name(&var_name)?);
         }
@@ -674,7 +676,7 @@ impl<'a> JackCompiler<'a> {
             num_args = 1;
             fun_name = format!("{}.{}",self.class_name, fun_name);
         }
-        num_args += self.parse_expression_list(xml_indent)?; //TODO: what if it was a function? Then we do not need that plus one.
+        num_args += self.parse_expression_list(xml_indent)?;
         self.vm_output += &format!("call {} {}\n",fun_name, num_args);
 
         return Ok(());
