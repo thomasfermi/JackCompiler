@@ -64,40 +64,6 @@ pub fn tokenize(mut jack_code: String) -> Vec<Token> {
     tokens
 }
 
-pub fn tokens_to_xml(tokens: Vec<Token>) -> String {
-    let mut output = "<tokens>\n".to_string();
-
-    for t in tokens {
-        match t {
-            Token::Keyword(keyword) => {
-                output += &format!("<keyword> {} </keyword>\n", keyword.to_string())
-            }
-            Token::Symbol(symbol) => {
-                let modified_symbol: String = match symbol {
-                    '<' => "&lt;".to_string(),
-                    '>' => "&gt;".to_string(),
-                    '&' => "&amp;".to_string(),
-                    _ => symbol.to_string(),
-                };
-                output += &format!("<symbol> {} </symbol>\n", modified_symbol);
-            }
-            Token::Identifier(identifier) => {
-                output += &format!("<identifier> {} </identifier>\n", identifier)
-            }
-            Token::IntConstant(int_constant) => {
-                output += &format!("<integerConstant> {} </integerConstant>\n", int_constant)
-            }
-            Token::StringConstant(string_constant) => {
-                output += &format!("<stringConstant> {} </stringConstant>\n", string_constant)
-            }
-        }
-    }
-
-    output += "</tokens>";
-
-    return output;
-}
-
 pub fn tokenize_single_string(s: &String) -> Token {
     if let Some(kw) = Keyword::from_string(s) {
         Token::Keyword(kw)
