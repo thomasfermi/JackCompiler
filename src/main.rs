@@ -62,8 +62,7 @@ fn main() {
 
         let tokens = jack_tokenizer::tokenize(jack_source_file_content);
         let mut jack_compiler = JackCompiler::new(&tokens);
-        let xml_file = jack_compiler.parse_class().expect("Parse Error!");
-        //let xml_file = jack_tokenizer::tokens_to_xml(tokens);
+        let vm_output_string = jack_compiler.compile_class().expect("Parse Error!");
 
         // Write to output file
         let mut output_file_name = str::replace(
@@ -80,7 +79,7 @@ fn main() {
             Ok(file) => file,
         };
 
-        match file.write_all(xml_file.as_bytes()) {
+        match file.write_all(vm_output_string.as_bytes()) {
             Err(why) => panic!("couldn't write to {}: {}", display, why.description()),
             Ok(_) => println!("Successfully wrote xml to {}", display),
         }
