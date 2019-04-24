@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
-//! HackVirtualMachineTranslator
-//! Converts Hack Virtual Machine code to Hack Assembly code. Hack is a computer specified in
+//! JackCompiler
+//! Compiles Jack code into virtual machine code. Hack is a computer specified in
 //! "The elements of Computing Systems" (a.k.a. "nand2tetris") by Nisan and Schocken.
 
 extern crate clap;
@@ -19,10 +19,10 @@ mod jack_tokenizer;
 pub use jack_compiler::JackCompiler;
 
 fn main() {
-    let matches = App::new("JackTokenizer")
+    let matches = App::new("JackCompiler")
                           .version("0.1")
                           .author("thomasfermi")
-                          .about("Tokenizes Jack code. Hack is a computer specified in \"The elements of Computing Systems\" by Nisan and Schocken.")
+                          .about("Compiles Jack code into virtual machine code. Hack is a computer specified in \"The elements of Computing Systems\" by Nisan and Schocken.")
                           .arg(Arg::with_name("Jack_input")
                                .help("Path to the file containing Jack source code. File extension is jack. ")
                                .required(true)
